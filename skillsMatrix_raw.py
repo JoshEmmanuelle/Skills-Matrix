@@ -58,7 +58,7 @@ def normalize_skill(x):
 # Extract the text from .docx section
 
 def extract_section_text(doc, target_sections):
-    lines = [p.text.stip() for p in doc.paragraphs]
+    lines = [p.text.strip() for p in doc.paragraphs]
     collected = []
     capture = False
 
