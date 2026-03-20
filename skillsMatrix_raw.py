@@ -49,6 +49,25 @@ CATEGORY_MAP = {
     "Other": []  # Fallback category. Probably depending on the results in this section, we may want to create additional categories or move some keywords around.
 }
 
+
+# Normalization rules from our project
+NORMALIZE = {
+    "UNIX": "Unix",
+    "LINUX": "Linux",
+    "CentOs": "CentOS",
+    "JIRA": "Jira",
+    "VS Code": "VSCode",
+    "REST Services": "REST",
+    "Python3": "Python",
+    "PIG": "Pig",
+    "IDA Pro": "IDAPro",
+    "GIT": "Git",
+    "Docker Compose": "Docker",
+    "Docker Swarm": "Docker",
+    "Jupyter": "Jupyter Notebook",
+    "Jupyter Notebooks": "Jupyter Notebook"
+}
+
 # Normalize skill keywords and text
 
 def normalize_skill(x):
