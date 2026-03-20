@@ -148,6 +148,10 @@ def parse_resume(file_path):
                     break
             if not assigned:
                 categorized["Other"].append(item)
+                
+    for key in categorized:
+        if isinstance(categorized[key], list):
+            categorized[key] = ", ".join(dict.fromkeys(categorized[key]))
 
     #Parse Certifications
     certs = ";".join([x.strip() for x in raw_certs]).strip()
