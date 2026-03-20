@@ -1,6 +1,13 @@
 # -------------------------------------------------------------
-# AUTOMATED RESUME SKILL–CERT–EDU MATRIX GENERATOR
-# FINAL PRODUCTION VERSION FOR STREAMLIT DEPLOYMENT
+# FINAL PRODUCTION SKILL-MATRIX GENERATOR (OPTION 2: DYNAMIC)
+# Streamlit App (Option B UI)
+# -------------------------------------------------------------
+# - Supports .docx and .zip resume uploads
+# - Extracts SKILLS, CERTIFICATIONS, EDUCATION from correct sections
+# - Dynamically classifies skills using keyword-based matching
+# - Allows new skills to appear naturally from future resumes
+# - Cleans, dedupes, sorts alphabetically, and normalizes values
+# - Produces 7-sheet Excel like final-matrix-test-KS.xlsx
 # -------------------------------------------------------------
 
 import os
@@ -13,285 +20,280 @@ from docx import Document
 import streamlit as st
 
 # -------------------------------------------------------------
-# SECTION TITLES (YOUR EXACT RULES)
+# SECTION HEADERS
 # -------------------------------------------------------------
-SKILL_SECTIONS = [
-    "skills", "technical skills", "tools", "technology stack"
-]
-
-CERT_SECTIONS = [
-    "certification", "certifications"
-]
-
-EDU_SECTIONS = [
-    "education", "academic background"
-]
+SKILL_SECTIONS = ["skills", "technical skills", "tools", "technical summary", "technology stack"]
+CERT_SECTIONS = ["certifications", "certification", "professional certifications"]
+EDU_SECTIONS = ["education", "academic background", "degrees"]
 
 # -------------------------------------------------------------
-# SKILL CATEGORY MAPPING (YOUR S1–S12 SYSTEM)
+# KEYWORD-BASED CATEGORY CLASSIFICATION
+# (Dynamic classification avoids hard-coded confidential data)
 # -------------------------------------------------------------
-CATEGORY_MAP = {
+CATEGORY_KEYWORDS = {
     "Language": [
-        "python", "java", "c,", "c ", "c++", "bash", "perl", "groovy", 
-        "javascript", "typescript", "vb", "visual basic", "scala", "rust"
+        "python", "java", "c++", "c#", "c ", "bash", "perl", "groovy",
+        "javascript", "typescript", "html", "css", "scala", "go", "rust"
     ],
-    "Cloud": ["aws", "azure", "gcp"],
-    "Databases": [
-        "mysql", "postgres", "sql server", "mongodb", "oracle", 
-        "elasticsearch", "accumulo", "postgresql", "maria"
-    ],
-    "OS": ["linux", "windows", "unix", "centos", "rhel", "ubuntu", "kali"],
-    "Framework/Libraries": [
-        "angular", "react", "flask", "django", "spring", 
-        "bootstrap", "pytorch", "tensorflow"
-    ],
-    "DevOps": ["jenkins", "ansible", "terraform", "argo", "ci/cd", "cicd"],
+    "Cloud": ["aws", "azure", "gcp", "cloud"],
+    "Databases": ["mysql", "postgres", "sql", "mongodb", "oracle", "elasticsearch", "accumulo"],
+    "OS": ["linux", "windows", "unix", "centos", "rhel", "ubuntu", "kali", "redhat"],
+    "Framework/Libraries": ["react", "angular", "flask", "django", "spring", "bootstrap", "pytorch", "tensorflow", "keras"],
+    "DevOps": ["jenkins", "ansible", "terraform", "cicd", "ci/cd", "argo"],
     "Container/Orchestration": ["docker", "kubernetes", "compose", "swarm"],
-    "Machine Learning/AI": [
-        "tensorflow", "pytorch", "keras", "machine learning", 
-        "ml", "deep learning"
-    ],
-    "Networking": ["tcp/ip", "dns", "dhcp", "ssl", "routing", "switching"],
+    "Machine Learning/AI": ["machine learning", "deep learning", "tensorflow", "keras", "pytorch", "ml", "ai"],
+    "Networking": ["tcp", "dns", "dhcp", "ssl", "routing", "switching", "network"],
     "Version Control": ["git", "svn", "subversion"],
     "Tools": [
-        "jira", "jupyter", "ida pro", "idapro", "ghidra", "autopsy", 
-        "splunk", "nifi", "vmware", "eclipse", "soapui", 
-        "visual studio", "postman", "spectrum analyzer"
+        "jira", "jupyter", "idapro", "ghidra", "autopsy", "splunk", "nifi", "vmware",
+        "eclipse", "soapui", "postman", "visual studio", "vs code", "vscode"
     ],
-    "Other": []  # fallback category
+    "Other": []  # fallback
 }
 
 # -------------------------------------------------------------
-# NORMALIZATION RULES GIVEN BY YOU
+# NORMALIZATION MAP (Dynamic-based, no confidential data)
 # -------------------------------------------------------------
-NORMALIZE = {
+NORMALIZE_MAP = {
+    "VS Code": "VSCode",
     "UNIX": "Unix",
     "LINUX": "Linux",
     "CentOs": "CentOS",
-    "JIRA": "Jira",
-    "VS Code": "VSCode",
-    "REST Services": "REST",
-    "Python3": "Python",
     "PIG": "Pig",
     "IDA Pro": "IDAPro",
     "GIT": "Git",
     "Docker Compose": "Docker",
-    "Docker Swarm": "Docker",
-    "Jupyter": "Jupyter Notebook",
-    "Jupyter Notebooks": "Jupyter Notebook"
+    "Docker Swarm": "Docker"
 }
 
-# -------------------------------------------------------------
-# NORMALIZATION FUNCTION
-# -------------------------------------------------------------
-def normalize_skill(x):
-    x = x.strip()
-    return NORMALIZE.get(x, x)
+def normalize(v: str) -> str:
+    v = v.strip()
+    return NORMALIZE_MAP.get(v, v)
 
 # -------------------------------------------------------------
-# EXTRACT SPECIFIC SECTIONS FROM DOCX
+# CLEANING UTILITIES
 # -------------------------------------------------------------
-def extract_section_text(doc, target_sections):
+def clean_list(text):
+    if not text or str(text).strip() == "":
+        return ""
+    items = re.split(r",|;", text)
+    cleaned = []
+    for i in items:
+        v = i.strip()
+        if not v:
+            continue
+        v = normalize(v)
+        cleaned.append(v)
+    cleaned = list(dict.fromkeys(cleaned))        # dedupe
+    cleaned = sorted(cleaned, key=str.lower)      # alphabetical
+    return ", ".join(cleaned)
+
+# -------------------------------------------------------------
+# EXTRACT A SECTION FROM DOCX BY HEADERS
+# -------------------------------------------------------------
+def extract_section(doc, headers):
     lines = [p.text.strip() for p in doc.paragraphs]
-    collected = []
     capture = False
+    block = []
 
     for line in lines:
-        if any(line.lower().startswith(s) for s in target_sections):
+        low = line.lower()
+        if any(low.startswith(h) for h in headers):
             capture = True
             continue
 
         if capture:
-            # Stop if next section heading or empty gap
-            if line.strip() == "" or re.match(r"^[A-Za-z ]+:$", line):
+            if not line.strip() or re.match(r"^[A-Za-z ]+:$", line):
                 break
-            collected.append(line)
-
-    return collected
+            block.append(line)
+    return block
 
 # -------------------------------------------------------------
-# FIND ALL DOCX FILES FROM UPLOADED FILES / ZIP / FOLDER
+# FIND DOCX FILES (DIRECT, ZIP, FOLDER)
 # -------------------------------------------------------------
-def gather_docx_files(uploaded_files):
+def gather_docx(uploaded_files):
     temp_dir = tempfile.mkdtemp()
-    collected = []
+    found = []
 
-    for uf in uploaded_files:
-        filepath = os.path.join(temp_dir, uf.name)
-        with open(filepath, "wb") as f:
-            f.write(uf.getbuffer())
+    for file in uploaded_files:
+        path = os.path.join(temp_dir, file.name)
+        with open(path, "wb") as f:
+            f.write(file.getbuffer())
 
-        if uf.name.lower().endswith(".docx"):
-            collected.append(filepath)
-
-        elif uf.name.lower().endswith(".zip"):
-            with zipfile.ZipFile(filepath, "r") as z:
+        if path.lower().endswith(".docx"):
+            found.append(path)
+        elif path.lower().endswith(".zip"):
+            with zipfile.ZipFile(path, "r") as z:
                 z.extractall(temp_dir)
-
             for root, _, files in os.walk(temp_dir):
-                for f in files:
-                    if f.lower().endswith(".docx"):
-                        collected.append(os.path.join(root, f))
+                for fn in files:
+                    if fn.lower().endswith(".docx"):
+                        found.append(os.path.join(root, fn))
+    return found
 
-    return collected
+# -------------------------------------------------------------
+# DYNAMIC SKILL CLASSIFICATION
+# -------------------------------------------------------------
+def classify_skills(raw_skills):
+    categorized = {c: [] for c in CATEGORY_KEYWORDS}
+
+    for line in raw_skills:
+        items = clean_list(line).split(", ")
+        for skill in items:
+            if not skill:
+                continue
+
+            skill_lower = skill.lower()
+            matched = False
+
+            # Keyword-based matching
+            for category, keywords in CATEGORY_KEYWORDS.items():
+                if any(kw in skill_lower for kw in keywords):
+                    categorized[category].append(skill)
+                    matched = True
+                    break
+
+            if not matched:
+                categorized["Other"].append(skill)
+
+    # Clean final results
+    for c in categorized:
+        categorized[c] = clean_list(", ".join(categorized[c]))
+
+    return categorized
 
 # -------------------------------------------------------------
 # PARSE A SINGLE RESUME
 # -------------------------------------------------------------
-def parse_resume(filepath):
-    doc = Document(filepath)
-    name = os.path.splitext(os.path.basename(filepath))[0]
+def parse_resume(path):
+    doc = Document(path)
+    name = os.path.splitext(os.path.basename(path))[0]
 
-    raw_skills = extract_section_text(doc, SKILL_SECTIONS)
-    raw_certs = extract_section_text(doc, CERT_SECTIONS)
-    raw_edu = extract_section_text(doc, EDU_SECTIONS)
+    skill_lines = extract_section(doc, SKILL_SECTIONS)
+    cert_lines = extract_section(doc, CERT_SECTIONS)
+    edu_lines = extract_section(doc, EDU_SECTIONS)
 
-    # ---------- SKILL EXTRACTION ----------
-    categorized = {c: [] for c in CATEGORY_MAP}
-    for line in raw_skills:
-        items = [
-            normalize_skill(x) for x in re.split(r",|;", line) 
-            if x.strip()
-        ]
-        for item in items:
-            matched = False
-            for category, keywords in CATEGORY_MAP.items():
-                if any(k.lower() in item.lower() for k in keywords):
-                    categorized[category].append(item)
-                    matched = True
-                    break
-            if not matched:
-                categorized["Other"].append(item)
+    skills = classify_skills(skill_lines)
+    certs = clean_list("; ".join(cert_lines))
 
-    # Convert lists → clean strings
-    for key in categorized:
-        categorized[key] = ", ".join(dict.fromkeys(categorized[key]))
+    assoc = bach = mast = phd = ""
 
-    # ---------- CERTIFICATIONS ----------
-    certs = "; ".join([c.strip() for c in raw_certs]).strip()
-
-    # ---------- EDUCATION ----------
-    deg_assoc = ""
-    deg_bach = ""
-    deg_mast = ""
-    deg_phd = ""
-
-    for line in raw_edu:
+    for line in edu_lines:
         L = line.lower()
         if "associate" in L:
-            deg_assoc = line
+            assoc = line
         elif "bachelor" in L or "b.s." in L:
-            deg_bach = line
+            bach = line
         elif "master" in L or "m.s." in L or "mba" in L:
-            deg_mast = line
+            mast = line
         elif "phd" in L or "doctor" in L:
-            deg_phd = line
+            phd = line
+
+    assoc = clean_list(assoc)
+    bach = clean_list(bach)
+    mast = clean_list(mast)
+    phd = clean_list(phd)
 
     return {
         "Name": name,
-        **categorized,
+        **skills,
         "Certifications": certs,
-        "Degree/Associates": deg_assoc,
-        "Degree/Bachelors": deg_bach,
-        "Degree/Masters": deg_mast,
-        "Degree/Phd's": deg_phd,
+        "Degree/Associates": assoc,
+        "Degree/Bachelors": bach,
+        "Degree/Masters": mast,
+        "Degree/Phd's": phd
     }
 
 # -------------------------------------------------------------
-# BUILD FREQUENCY TABLES
+# BUILD FREQUENCY SHEETS
 # -------------------------------------------------------------
-def build_frequency_tables(df):
-    # Skills
-    skill_count = defaultdict(int)
+def build_frequencies(df):
+    skill_freq = defaultdict(int)
+    cert_freq = defaultdict(int)
+    deg_freq = {
+        "Degree/Associates": defaultdict(int),
+        "Degree/Bachelors": defaultdict(int),
+        "Degree/Masters": defaultdict(int),
+        "Degree/Phd's": defaultdict(int)
+    }
+
     for _, row in df.iterrows():
-        seen = set()
-        for col in CATEGORY_MAP.keys():
-            vals = str(row[col]).split(",")
-            for v in [x.strip() for x in vals if x.strip()]:
-                seen.add(v)
-        for item in seen:
-            skill_count[item] += 1
+        # Skills
+        for cat in CATEGORY_KEYWORDS:
+            vals = clean_list(row[cat]).split(", ")
+            for v in set([x for x in vals if x]):
+                skill_freq[v] += 1
 
-    skill_df = pd.DataFrame(
-        sorted(skill_count.items(), key=lambda x: (-x[1], x[0].lower())),
-        columns=["Skill", "Candidate Count"]
-    )
+        # Certifications
+        for c in set([x for x in clean_list(row["Certifications"]).split(", ") if x]):
+            cert_freq[c] += 1
 
-    # Certifications
-    cert_count = defaultdict(int)
-    for _, row in df.iterrows():
-        if row["Certifications"]:
-            for c in [x.strip() for x in row["Certifications"].split(";") if x.strip()]:
-                cert_count[c] += 1
+        # Degrees
+        for col in deg_freq:
+            for d in set([x for x in clean_list(row[col]).split(", ") if x]):
+                deg_freq[col][d] += 1
 
-    cert_df = pd.DataFrame(
-        sorted(cert_count.items(), key=lambda x: (-x[1], x[0].lower())),
-        columns=["Certification", "Candidate Count"]
-    )
+    sf = pd.DataFrame(sorted(skill_freq.items(), key=lambda x: (-x[1], x[0].lower())),
+                      columns=["Skill", "Candidate Count"])
+    cf = pd.DataFrame(sorted(cert_freq.items(), key=lambda x: (-x[1], x[0].lower())),
+                      columns=["Certification", "Candidate Count"])
 
-    # Degrees
-    degree_tables = {}
-    for col in ["Degree/Associates", "Degree/Bachelors", "Degree/Masters", "Degree/Phd's"]:
-        counts = defaultdict(int)
-        for _, row in df.iterrows():
-            if row[col]:
-                for c in [x.strip() for x in row[col].split(";") if x.strip()]:
-                    counts[c] += 1
-        degree_tables[col] = pd.DataFrame(
-            sorted(counts.items(), key=lambda x: (-x[1], x[0].lower())),
+    deg_tables = {}
+    for col in deg_freq:
+        deg_tables[col] = pd.DataFrame(
+            sorted(deg_freq[col].items(), key=lambda x: (-x[1], x[0].lower())),
             columns=["Degree", "Candidate Count"]
         )
 
-    return skill_df, cert_df, degree_tables
+    return sf, cf, deg_tables
 
 # -------------------------------------------------------------
-# STREAMLIT APPLICATION UI
+# STREAMLIT UI — Option B
 # -------------------------------------------------------------
 def main():
-    st.title("📊 Automated Skill Matrix Generator")
-    st.write("Upload Word (.docx) files or ZIP folders containing resumes.")
+    st.title("📊 Skill Matrix Generator (Dynamic Classification)")
+    st.write("Upload resumes (.docx or .zip). The system will extract, classify, and generate a multi-sheet Excel file.")
 
-    uploads = st.file_uploader(
-        "Drag & Drop resumes or ZIP files here",
-        type=["docx", "zip"],
-        accept_multiple_files=True
-    )
+    uploads = st.file_uploader("Upload files", type=["docx", "zip"], accept_multiple_files=True)
 
-    if st.button("Process Resumes") and uploads:
-        docx_files = gather_docx_files(uploads)
+    if st.button("Process") and uploads:
+        st.info("Scanning files...")
+        files = gather_docx(uploads)
 
-        if not docx_files:
-            st.error("No .docx files found.")
+        if not files:
+            st.error("No valid .docx files found.")
             return
 
-        st.info("Extracting resume data...")
-        records = [parse_resume(f) for f in docx_files]
-        df = pd.DataFrame(records)
+        st.success(f"{len(files)} resumes detected.")
 
-        st.success("Extraction complete. Building frequency tables...")
+        rows = []
+        for f in files:
+            try:
+                rows.append(parse_resume(f))
+            except Exception as e:
+                st.error(f"Error parsing {f}: {str(e)}")
 
-        skill_df, cert_df, degree_tables = build_frequency_tables(df)
+        df = pd.DataFrame(rows)
+        st.success("Extraction complete.")
 
-        # Save Excel
-        output_path = os.path.join(
-            tempfile.mkdtemp(), 
-            "final-matrix-with-all-frequencies.xlsx"
-        )
+        sf, cf, deg_tables = build_frequencies(df)
 
-        with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
-            df.to_excel(writer, sheet_name="By Category", index=False)
-            skill_df.to_excel(writer, sheet_name="SkillFrequency", index=False)
-            cert_df.to_excel(writer, sheet_name="CertificationFrequency", index=False)
-            degree_tables["Degree/Associates"].to_excel(writer, sheet_name="DegreeFrequency_Associates", index=False)
-            degree_tables["Degree/Bachelors"].to_excel(writer, sheet_name="DegreeFrequency_Bachelors", index=False)
-            degree_tables["Degree/Masters"].to_excel(writer, sheet_name="DegreeFrequency_Masters", index=False)
-            degree_tables["Degree/Phd's"].to_excel(writer, sheet_name="DegreeFrequency_Phds", index=False)
+        outpath = os.path.join(tempfile.mkdtemp(), "final-matrix-with-all-frequencies.xlsx")
+        with pd.ExcelWriter(outpath, engine="openpyxl") as w:
+            df.to_excel(w, "By Category", index=False)
+            sf.to_excel(w, "SkillFrequency", index=False)
+            cf.to_excel(w, "CertificationFrequency", index=False)
+            deg_tables["Degree/Associates"].to_excel(w, "DegreeFrequency_Associates", index=False)
+            deg_tables["Degree/Bachelors"].to_excel(w, "DegreeFrequency_Bachelors", index=False)
+            deg_tables["Degree/Masters"].to_excel(w, "DegreeFrequency_Masters", index=False)
+            deg_tables["Degree/Phd's"].to_excel(w, "DegreeFrequency_Phds", index=False)
 
-        st.success("Your final Skill Matrix Excel file is ready.")
+        st.success("Your Excel file is ready.")
         st.download_button(
-            "Download Excel File",
-            data=open(output_path, "rb").read(),
-            file_name="final-matrix-with-all-frequencies.xlsx"
+            "Download final-matrix-with-all-frequencies.xlsx",
+            data=open(outpath, "rb").read(),
+            file_name="final-matrix-with-all-frequencies.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
 if __name__ == "__main__":
