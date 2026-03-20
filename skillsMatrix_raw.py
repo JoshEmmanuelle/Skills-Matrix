@@ -174,10 +174,10 @@ def parse_resume(file_path):
         "Name": name,
         **categorized,
         "Certifications": certs,
-        "Degree/Associate": deg_assoc,
-        "Degree/Bachelor": deg_bach,
-        "Degree/Master": deg_mast,
-        "Degree/PhD": deg_phd
+        "Degree/Associates": deg_assoc,
+        "Degree/Bachelors": deg_bach,
+        "Degree/Masters": deg_mast,
+        "Degree/Phd's": deg_phd
     }
 
 
@@ -213,7 +213,7 @@ def build_frequency_tables(df):
 
  # Degree frequency
     degree_tables = {}
-    for col in ["Degree/Associate", "Degree/Bachelor", "Degree/Master", "Degree/PhD"]:
+    for col in ["Degree/Associates", "Degree/Bachelors", "Degree/Masters", "Degree/Phd's"]:
         freq = defaultdict(int)
         for _, row in df.iterrows():
             raw = row[col]
