@@ -1,0 +1,23 @@
+swagger: "2.0"
+info:
+  title: Skill Matrix Generator API
+  version: "1.0"
+paths:
+  /generate_matrix:
+    post:
+      consumes:
+        - multipart/form-data
+      produces:
+        - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+      parameters:
+        - name: files
+          in: formData
+          description: Resume files (.docx or .zip)
+          required: true
+          type: file
+      responses:
+        200:
+          description: Excel file generated
+          schema:
+            type: string
+            format: binary
