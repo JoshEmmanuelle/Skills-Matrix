@@ -1,0 +1,12 @@
+{
+  "AWS": "Language",
+  "Git": "Language",
+  "Jupyter Notebook": "Language",
+  "Oracle": "Language",
+  "Pandas": "Language",
+  "Python": "Language",
+  "R": "Language",
+  "SQL": "Language",
+  "TensorFlow": "Language",
+  "VSCode": "Language"
+}
