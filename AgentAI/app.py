@@ -1,331 +1,299 @@
-import io
-import json
-import re
-import zipfile
-from typing import Dict, List, Optional, Set
-
-import pandas as pd
 import streamlit as st
-import requests
-from docx import Document
+from pathlib import Path
+import pandas as pd
+from collections import Counter
 
-# ======================================================
-# CONFIG
-# ======================================================
-LM_STUDIO_URL = "http://127.0.0.1:1234/v1/chat/completions"
-MODEL_NAME = "meta-llama_-_meta-llama-3-8b-instruct"
-CURRENT_YEAR = 2026
-MAPPING_FILE = "skill_category_mappings.json"
-
-# ======================================================
-# STRUCTURE
-# ======================================================
-CATEGORIES = [
-    "Language", "Cloud", "Databases", "OS",
-    "Framework/Libraries", "DevOps",
-    "Container/Orchestration", "Machine Learning/AI",
-    "Networking", "Version Control", "Tools", "Other",
-]
-
-BY_CATEGORY_COLUMNS = [
-    "Name", "Years of Experience",
-    *CATEGORIES,
-    "Certifications",
-    "Degree/Associates",
-    "Degree/Bachelors",
-    "Degree/Masters",
-    "Degree/Phds",
-]
-
-# ======================================================
-# SYSTEM PROMPT (EXTRACTION ONLY)
-# ======================================================
-SYSTEM_PROMPT = """
-Return STRICT JSON only. No markdown, no commentary.
-
-Keys:
-- name
-- skills_section_text
-- education_section_text
-- certifications_section_text
-- experience_section_text
-
-Extract ONLY from explicit section headers.
-Return empty strings if a section does not exist.
-""".strip()
-
-# ======================================================
-# SAFE HELPERS
-# ======================================================
-def split_items(text) -> List[str]:
-    if text is None or isinstance(text, float):
-        return []
-    if not isinstance(text, str):
-        text = str(text)
-    return [x.strip() for x in re.split(r"[;,]", text) if x.strip()]
-
-def dedupe(seq: List[str]) -> List[str]:
-    seen = set()
-    out = []
-    for s in seq:
-        if s not in seen:
-            seen.add(s)
-            out.append(s)
-    return out
-
-def normalize_skill(skill) -> Optional[str]:
-    if not isinstance(skill, str):
-        return None
-    s = skill.strip()
-    return s if s else None
-
-# ======================================================
-# EDUCATION HELPERS (NEW)
-# ======================================================
-def split_education_lines(text: str) -> List[str]:
-    if not text or not isinstance(text, str):
-        return []
-    lines = []
-    for line in text.splitlines():
-        for part in line.split(";"):
-            p = part.strip()
-            if p:
-                lines.append(p)
-    return lines
-
-def classify_degree_level(deg: str) -> Optional[str]:
-    t = deg.lower()
-    if any(k in t for k in ["ph.d", "phd", "doctor"]):
-        return "Phds"
-    if any(k in t for k in ["master", "m.s", "ms", "mba"]):
-        return "Masters"
-    if any(k in t for k in ["bachelor", "b.s", "bs", "b.a", "ba"]):
-        return "Bachelors"
-    if any(k in t for k in ["associate", "a.s", "as", "a.a"]):
-        return "Associates"
-    return None
-
-# ======================================================
-# SKILL MAP PERSISTENCE
-# ======================================================
-def load_skill_map() -> Dict[str, str]:
-    try:
-        with open(MAPPING_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {}
-
-def save_skill_map(m: Dict[str, str]) -> None:
-    with open(MAPPING_FILE, "w", encoding="utf-8") as f:
-        json.dump(m, f, indent=2, sort_keys=True)
-
-# ======================================================
-# EXCEL SKILL MAP (UNAMBIGUOUS ONLY)
-# ======================================================
-def build_excel_skill_map(df: pd.DataFrame) -> Dict[str, str]:
-    found: Dict[str, Set[str]] = {}
-    for cat in CATEGORIES:
-        for cell in df[cat].dropna():
-            for raw in split_items(cell):
-                sk = normalize_skill(raw)
-                if sk:
-                    found.setdefault(sk, set()).add(cat)
-    return {k: next(iter(v)) for k, v in found.items() if len(v) == 1}
-
-# ======================================================
-# LLM EXTRACTION
-# ======================================================
-def extract_resume(text: str) -> Dict[str, str]:
-    payload = {
-        "model": MODEL_NAME,
-        "temperature": 0,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": text},
-        ],
-        "max_tokens": 1400,
-    }
-    r = requests.post(LM_STUDIO_URL, json=payload, timeout=120)
-    r.raise_for_status()
-    content = r.json()["choices"][0]["message"]["content"]
-    content = re.sub(r"```(?:json)?", "", content, flags=re.IGNORECASE).strip()
-
-    m = re.search(r"\{.*\}", content, flags=re.DOTALL)
-    if not m:
-        raise ValueError("LLM did not return JSON")
-
-    obj = json.loads(m.group(0))
-    required = {
-        "name",
-        "skills_section_text",
-        "education_section_text",
-        "certifications_section_text",
-        "experience_section_text",
-    }
-    missing = required - obj.keys()
-    if missing:
-        raise ValueError(f"LLM JSON missing keys: {missing}")
-
-    return obj
-
-# ======================================================
-# YEARS OF EXPERIENCE
-# ======================================================
-def calc_years_experience(exp_text: str) -> Optional[int]:
-    years = [int(y) for y in re.findall(r"(19\\d{2}|20\\d{2})", exp_text)]
-    return CURRENT_YEAR - min(years) if years else None
-
-# ======================================================
-# REBUILD ALL FREQUENCY SHEETS
-# ======================================================
-def rebuild_frequencies(df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
-    result = {}
-
-    # SkillFrequency
-    skill_counts: Dict[str, Set[str]] = {}
-    for _, r in df.iterrows():
-        for c in CATEGORIES:
-            for sk in split_items(r[c]):
-                skill_counts.setdefault(sk, set()).add(r["Name"])
-
-    result["SkillFrequency"] = pd.DataFrame(
-        [{"Skill": k, "Candidate Count": len(v)} for k, v in sorted(skill_counts.items())]
-    )
-
-    # CertificationFrequency
-    cert_counts: Dict[str, Set[str]] = {}
-    for _, r in df.iterrows():
-        for c in split_items(r["Certifications"]):
-            cert_counts.setdefault(c, set()).add(r["Name"])
-
-    result["CertificationFrequency"] = pd.DataFrame(
-        [{"Certification": k, "Candidate Count": len(v)} for k, v in sorted(cert_counts.items())]
-    )
-
-    # Degree Frequencies
-    for level in ["Associates", "Bachelors", "Masters", "Phds"]:
-        col = f"Degree/{level}"
-        deg_counts: Dict[str, Set[str]] = {}
-        for _, r in df.iterrows():
-            for d in split_items(r[col]):
-                deg_counts.setdefault(d, set()).add(r["Name"])
-        result[f"DegreeFrequency_{level}"] = pd.DataFrame(
-            [{"Degree": k, "Candidate Count": len(v)} for k, v in sorted(deg_counts.items())]
-        )
-
-    return result
-
-# ======================================================
-# STREAMLIT APP
-# ======================================================
-st.set_page_config(layout="wide")
-st.title("✅ Skills Matrix Resume Processor")
-
-excel_file = st.file_uploader("Upload Skills Matrix Excel", type="xlsx")
-resume_files = st.file_uploader(
-    "Upload Resumes (.docx or .zip)",
-    type=["docx", "zip"],
-    accept_multiple_files=True,
+from app.processor import (
+    load_excel_by_category,
+    create_empty_by_category_df,
+    peek_name_from_docx,
+    parse_resume_sections,
+    process_skills,
+    load_category_map,
+    save_category_map,
+    build_category_map_from_by_category,
+    resolve_conflicts_with_user,
+    categorize_skills_with_user,
+    apply_degrees,
+    upsert_candidate_row,
+    rebuild_skill_frequency,
+    rebuild_cert_frequency,
+    rebuild_degree_frequency,
+    write_excel_output,
 )
 
-if st.button("🚀 Process"):
-    if not excel_file or not resume_files:
-        st.error("Excel file and resumes are required.")
-        st.stop()
+st.set_page_config(page_title="Skills Matrix Resume Processor", layout="wide")
+st.title("Skills Matrix Resume Processor (Streamlit)")
 
-    df = pd.read_excel(excel_file, sheet_name="By Category")
-    df = df.reindex(columns=BY_CATEGORY_COLUMNS)
+st.markdown(
+    """
+### Modes
+**Option 1 — Update existing Skills Matrix Excel (merge):**
+Upload the most updated Excel + resumes; output includes existing rows + new rows.
 
-    excel_map = build_excel_skill_map(df)
-    persistent_map = load_skill_map()
-    skill_map = {**excel_map, **persistent_map}
+**Option 2 — Generate NEW Skills Matrix Excel from uploaded resumes ONLY:**
+Upload only resumes; output contains only those resumes (same rules applied).
+Optional: upload a reference Excel to help auto-map skills (no rows copied).
+"""
+)
 
-    progress = st.progress(0)
-    added = updated = 0
+# -----------------------------
+# UI: Mode selection
+# -----------------------------
+mode = st.radio(
+    "Choose processing mode",
+    options=[
+        "Option 1: Update existing Skills Matrix Excel (merge)",
+        "Option 2: Generate NEW Skills Matrix Excel from uploaded resumes ONLY",
+    ],
+    horizontal=False,
+)
 
-    for i, uploaded in enumerate(resume_files):
-        progress.progress((i + 1) / len(resume_files))
+# -----------------------------
+# Inputs
+# -----------------------------
+st.sidebar.header("Inputs")
 
-        docs = []
-        if uploaded.name.lower().endswith(".zip"):
-            z = zipfile.ZipFile(uploaded)
-            docs = [(n, z.read(n)) for n in z.namelist() if n.lower().endswith(".docx")]
-        else:
-            docs = [(uploaded.name, uploaded.read())]
+excel_file = None
+reference_excel = None
 
-        for fname, data in docs:
-            doc = Document(io.BytesIO(data))
-            text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
-            ext = extract_resume(text)
+if mode.startswith("Option 1"):
+    excel_file = st.sidebar.file_uploader(
+        "Upload MOST UPDATED Skills Matrix Excel (.xlsx) [Required]",
+        type=["xlsx"],
+    )
+else:
+    reference_excel = st.sidebar.file_uploader(
+        "Optional: Upload reference Skills Matrix Excel (.xlsx) to expand mappings (no rows copied)",
+        type=["xlsx"],
+    )
 
-            name = ext["name"]
-            duplicate = df["Name"].str.lower().eq(name.lower()).any()
+resume_files = st.sidebar.file_uploader(
+    "Upload resume(s) (.docx)",
+    type=["docx"],
+    accept_multiple_files=True
+)
 
-            replace = False
-            if duplicate:
-                replace = (
-                    st.radio(
-                        f"Duplicate found: {name}",
-                        ["New Person", "Replace Existing"],
-                        key=f"dup_{name}_{fname}",
-                    )
-                    == "Replace Existing"
-                )
+st.sidebar.header("Mappings")
+category_map_path = Path("data/skill_category_map.json")
 
-            row = {c: "" for c in BY_CATEGORY_COLUMNS}
-            row["Name"] = name
-            row["Years of Experience"] = calc_years_experience(ext["experience_section_text"])
-            row["Certifications"] = "; ".join(split_items(ext["certifications_section_text"]))
+# Load persistent mappings (skill_category_map.json on disk)
+if "category_map" not in st.session_state:
+    st.session_state.category_map = load_category_map(category_map_path)
 
-            # EDUCATION
-            for deg in split_education_lines(ext["education_section_text"]):
-                lvl = classify_degree_level(deg)
-                if lvl:
-                    col = f"Degree/{lvl}"
-                    row[col] += (", " if row[col] else "") + deg
+# Progress bar
+progress = st.progress(0, text="Ready")
 
-            # SKILLS
-            skills = dedupe(
-                filter(None, [normalize_skill(s) for s in split_items(ext["skills_section_text"])])
-            )
+def set_progress(pct: int, msg: str):
+    pct = max(0, min(100, int(pct)))
+    progress.progress(pct, text=f"{pct}% — {msg}")
 
-            unknown = []
-            for sk in skills:
-                if sk in skill_map:
-                    cat = skill_map[sk]
-                    row[cat] += (", " if row[cat] else "") + sk
-                else:
-                    unknown.append(sk)
+# -----------------------------
+# Validate inputs
+# -----------------------------
+if mode.startswith("Option 1") and not excel_file:
+    st.info("Option 1 requires the most updated Excel file.")
+    st.stop()
 
-            for sk in unknown:
-                cat = st.selectbox(f"Categorize skill '{sk}'", CATEGORIES, key=f"{name}_{sk}")
-                persistent_map[sk] = cat
-                row[cat] += (", " if row[cat] else "") + sk
+if not resume_files:
+    st.info("Upload one or more resumes to proceed.")
+    st.stop()
 
-            if unknown:
-                save_skill_map(persistent_map)
-                skill_map.update(persistent_map)
+# -----------------------------
+# Step A: Establish base By Category dataframe
+# -----------------------------
+set_progress(5, "Initializing base dataset")
 
-            if duplicate and replace:
-                df = df[df["Name"].str.lower() != name.lower()]
-                updated += 1
-            else:
-                added += 1
+if mode.startswith("Option 1"):
+    by_cat = load_excel_by_category(excel_file)
+    st.caption("Base dataset: loaded from the uploaded Skills Matrix Excel.")
+else:
+    by_cat = create_empty_by_category_df()
+    st.caption("Base dataset: starting from an empty Skills Matrix (resumes-only mode).")
 
-            df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+set_progress(10, "Loading mappings")
 
-    frequencies = rebuild_frequencies(df)
+# -----------------------------
+# Step B: (Optional) expand mappings from reference Excel in Option 2
+# -----------------------------
+if mode.startswith("Option 2") and reference_excel is not None:
+    set_progress(15, "Reading reference Excel to expand mappings")
 
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df.to_excel(writer, sheet_name="By Category", index=False)
-        for sheet, fdf in frequencies.items():
-            fdf.to_excel(writer, sheet_name=sheet, index=False)
+    ref_by_cat = load_excel_by_category(reference_excel)
+    ref_map, ref_conflicts = build_category_map_from_by_category(ref_by_cat)
 
-    st.success(f"✅ Done — Added: {added}, Updated: {updated}")
+    # Merge reference mappings into session mapping (do not overwrite existing)
+    for skill, cat in ref_map.items():
+        if skill not in st.session_state.category_map:
+            st.session_state.category_map[skill] = cat
+
+    # If conflicts exist in reference file, rulebook requires user resolution
+    if ref_conflicts:
+        st.warning(
+            "Reference Excel has conflicting skill categories. Resolve to continue (no inference)."
+        )
+        st.session_state.category_map = resolve_conflicts_with_user(
+            ref_conflicts, st.session_state.category_map
+        )
+        save_category_map(category_map_path, st.session_state.category_map)
+
+    set_progress(20, "Reference mappings merged")
+
+# -----------------------------
+# Step C: Learn mappings from base by_cat (Option 1 always has a base Excel)
+# -----------------------------
+set_progress(25, "Learning mappings from base dataset")
+
+base_map, base_conflicts = build_category_map_from_by_category(by_cat)
+
+# Merge base mappings into JSON map without overwriting existing
+for skill, cat in base_map.items():
+    if skill not in st.session_state.category_map:
+        st.session_state.category_map[skill] = cat
+
+# If base Excel has conflicts, must resolve
+if base_conflicts:
+    st.warning(
+        "The base dataset has conflicting skill categories. Resolve to continue (no inference)."
+    )
+    st.session_state.category_map = resolve_conflicts_with_user(
+        base_conflicts, st.session_state.category_map
+    )
+
+save_category_map(category_map_path, st.session_state.category_map)
+st.success(f"Loaded {len(st.session_state.category_map)} skill mappings (JSON + Excel learned).")
+
+# -----------------------------
+# Step D: Duplicate Name Check (Mandatory First Step)
+# -----------------------------
+set_progress(30, "Running duplicate name check")
+
+# Peek candidate names for duplicate check (name-only)
+names_peeked = []
+for rf in resume_files:
+    rf.seek(0)
+    nm = peek_name_from_docx(rf)
+    names_peeked.append((rf.name, nm))
+
+# Determine duplicates vs existing base dataset and duplicates inside the batch
+existing_names = set(by_cat["Name"].astype(str).str.lower()) if len(by_cat) else set()
+batch_counts = Counter([nm.lower() for _, nm in names_peeked if nm])
+
+dup_table = []
+actions = {}
+
+for fn, nm in names_peeked:
+    nm_norm = (nm or "").strip()
+    in_existing = nm_norm.lower() in existing_names if nm_norm else False
+    in_batch_dup = batch_counts.get(nm_norm.lower(), 0) > 1 if nm_norm else False
+    is_dup = in_existing or in_batch_dup
+
+    dup_table.append({
+        "Resume File": fn,
+        "Parsed Name": nm_norm,
+        "Duplicate?": "YES" if is_dup else "NO",
+        "Reason": ("Exists in base Excel" if in_existing else "") + ("; " if in_existing and in_batch_dup else "") + ("Duplicate in upload batch" if in_batch_dup else ""),
+    })
+
+st.subheader("Duplicate Name Check (Mandatory)")
+st.dataframe(pd.DataFrame(dup_table), use_container_width=True)
+
+# Ask for user decision for every duplicate (Rule 4/5)
+any_dup = any(row["Duplicate?"] == "YES" for row in dup_table)
+
+if any_dup:
+    st.warning("Duplicates detected. Choose one action for each duplicate before continuing.")
+    for row in dup_table:
+        fn = row["Resume File"]
+        nm = row["Parsed Name"]
+        if row["Duplicate?"] == "NO":
+            actions[fn] = "new"
+            continue
+
+        choice = st.radio(
+            f"Action for duplicate candidate '{nm}' (file: {fn})",
+            options=["replacement (existing person)", "new person (same name)"],
+            horizontal=True,
+            key=f"dup_action_{fn}",
+        )
+        actions[fn] = "replace" if choice.startswith("replacement") else "new"
+else:
+    for fn, _ in names_peeked:
+        actions[fn] = "new"
+
+set_progress(35, "Duplicate decisions captured")
+
+# -----------------------------
+# Step E: Process resumes
+# -----------------------------
+st.subheader("Process Resumes")
+if st.button("Run Processor", type="primary"):
+    updated_by_cat = by_cat.copy()
+
+    total = len(resume_files)
+    for i, rf in enumerate(sorted(resume_files, key=lambda x: x.name.lower()), start=1):
+        pct = 35 + int(50 * (i / max(1, total)))
+        set_progress(pct, f"Processing resume {i} of {total}: {rf.name}")
+
+        action = actions.get(rf.name, "new")
+
+        rf.seek(0)
+        parsed = parse_resume_sections(rf, name_override=None)
+
+        # Skills
+        skills = process_skills(parsed["skills_raw"])
+
+        # Categorize skills (prompts only if missing mapping, permanent via json)
+        categorized, st.session_state.category_map = categorize_skills_with_user(
+            skills,
+            st.session_state.category_map,
+            resume_label=rf.name
+        )
+
+        # Degrees + experience
+        degrees_by_col, earliest_degree_year = apply_degrees(
+            parsed["education_lines"], parsed["education_text"]
+        )
+
+        # Upsert row (supports replace and new for duplicate name)
+        updated_by_cat = upsert_candidate_row(
+            updated_by_cat,
+            name=parsed["name"],
+            skills_by_category=categorized,
+            certs_raw=parsed["certs_raw"],
+            degrees_by_col=degrees_by_col,
+            earliest_degree_year=earliest_degree_year,
+            action=action
+        )
+
+    # Save mappings after successful run
+    save_category_map(category_map_path, st.session_state.category_map)
+
+    set_progress(90, "Rebuilding frequency sheets")
+
+    skill_freq = rebuild_skill_frequency(updated_by_cat)
+    cert_freq = rebuild_cert_frequency(updated_by_cat)
+    deg_assoc = rebuild_degree_frequency(updated_by_cat, "Degree/Associates")
+    deg_bach = rebuild_degree_frequency(updated_by_cat, "Degree/Bachelors")
+    deg_mast = rebuild_degree_frequency(updated_by_cat, "Degree/Masters")
+    deg_phd = rebuild_degree_frequency(updated_by_cat, "Degree/Phds")
+
+    set_progress(98, "Writing output workbook")
+
+    out_bytes = write_excel_output(
+        updated_by_cat, skill_freq, cert_freq, deg_assoc, deg_bach, deg_mast, deg_phd
+    )
+
+    set_progress(100, "Complete")
+
+    st.success("Processing complete.")
+    out_name = "Skills_Matrix_UPDATED.xlsx" if mode.startswith("Option 1") else "Skills_Matrix_FROM_RESUMES_ONLY.xlsx"
     st.download_button(
-        "⬇️ Download Updated Excel",
-        output.getvalue(),
-        "Skills_Matrix_Updated.xlsx",
+        "Download output Excel",
+        data=out_bytes,
+        file_name=out_name,
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
+    if mode.startswith("Option 2"):
+        st.info("Note: Output contains ONLY the uploaded resumes (no base rows).")

@@ -1,0 +1,12 @@
+---
+
+## 5) `skills-matrix-streamlit/.gitignore` (UNCHANGED)
+
+```gitignore
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+.idea/

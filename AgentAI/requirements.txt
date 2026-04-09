@@ -1,6 +1,4 @@
-# This file lists the dependencies for the AgentAI project.
-# Put in your terminal the follwing command to install the dependencies:
-            # pip3 install -r requirements.txt
-
-
-
+streamlit==1.37.1
+pandas==2.2.2
+openpyxl==3.1.5
+python-docx==1.1.2
