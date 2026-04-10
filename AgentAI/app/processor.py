@@ -65,6 +65,8 @@ EDU_HEADERS = {"education", "educations"}
 CERT_HEADERS = {"certification", "certifications"}
 
 NON_EXTRACTABLE_HEADERS = {
+    "ASSOCIATION/HONORS:",
+    "association/honors:",
     "summary",
     "clearance",
     "professional experience",
@@ -79,6 +81,10 @@ NON_EXTRACTABLE_HEADERS = {
     "organizations",
     "activities",
     "references",
+    "Associations/Honors:"
+    "Associations:",
+    "Honors:"
+    "Associations/Honors:"
 }
 
 _SPLIT = re.compile(r"[;,]")
@@ -157,6 +163,7 @@ COMPOUND_SPLITS = {
 
 SKILL_NORMALIZATION = {
     "amazon aws": "AWS",
+    "A WS": "AWS",
     "amazon": "AWS",
     "amazon ec2": "EC2",
     "ec2": "EC2",
@@ -183,9 +190,26 @@ SKILL_NORMALIZATION = {
     "Visual Studio Code": "VSCode",
     "VS Code": "VSCode",
     "Ajax": "AJAX",
+    "RandomForests": "Random Forests",
+    "NAS and SAN storage arrays": "NAS/SAN Storage",
+    "XLINX design suite": "Xilinx",
+    "VISIO 2000": "Visio",
+    "Microsoft Office Tools": "Microsoft Office",
+    "XLINX and Altera:": "FPGA Design",
+    "all LSI and MSI logic families": "LSI/MSI Logic",
+    "Linux Scripting": "Linux",
+    "Cloudwatch": "CloudWatch",
+    "RES Instances": "RES",
+    "Lambdas": "Lambda",
+    "EC2 Instances": "EC2",
+    "ElasticSearch CVS": "Elasticsearch",
+    "Google EarthMaps API": "Google Earth",
+    "and Kiribati.": "Kiribati",
+    "Apache Nifi": "Apache NiFi"
+    
 }
 
-REMOVED_SKILLS = {"amazon management console eclipse"}
+REMOVED_SKILLS = {"amazon management console eclipse", "Associations/Honors"}
 
 # ============================================================
 # Certification Normalization (CertificationFrequency only) + cosmetic merge is in rebuild
