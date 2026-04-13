@@ -16,8 +16,10 @@ Rulebook-compliant Streamlit app for processing resumes into a Skills Matrix Exc
 ```bash
 # skm = Skills Matrix
 python -m venv .skm
+
 # Windows
 .\.skm\Scripts\activate
+
 # macOS/Linux
 source .skm/bin/activate
 
