@@ -5,13 +5,12 @@ import unicodedata
 from pathlib import Path
 from collections import defaultdict, Counter
 from zipfile import BadZipFile
-
 import pandas as pd
 from docx import Document
 import streamlit as st
 
 # ============================================================
-# Constants (Locked Rulebook-compatible + current locked behavior)
+# Constants (Rulebook)
 # ============================================================
 
 FIXED_EXPERIENCE_YEAR = 2026
@@ -61,6 +60,7 @@ SKILLS_HEADERS = {
     "skills/tools/technologies",
     "skills & tools",
 }
+
 EDU_HEADERS = {"education", "educations"}
 CERT_HEADERS = {"certification", "certifications"}
 
@@ -99,58 +99,7 @@ _DASHES = str.maketrans({
 })
 
 # ============================================================
-# NEW: Generalized “Label:” stripping inside SKILLS section (automation-safe)
-# ============================================================
-
-# Matches label-like chunks ending with ":" anywhere in a line
-# Examples matched: "Languages:", "Development/web:", "Tools/other technologies:", "RDBMS:", "OS:", "Cloud:"
-# We keep it structural (colon-based), not vocabulary-based.
-_LABEL_ANYWHERE_RX = re.compile(
-    r"(?i)(^|[\s,])([A-Za-z][A-Za-z0-9 /&\-\+]{0,60})\s*:\s*"
-)
-
-def _strip_skill_group_labels(line: str) -> str:
-    """
-    In SKILLS section lines:
-    - Replace any 'Label:' occurrences with ', ' to prevent cross-line concatenation.
-    - This is a deterministic formatting cleanup, not inference.
-    """
-    s = (line or "").strip()
-    if not s:
-        return ""
-
-    # Normalize unicode + collapse whitespace
-    s = unicodedata.normalize("NFKC", s)
-    s = s.translate(_DASHES)
-    s = re.sub(r"\s+", " ", s).strip()
-
-    # Replace label occurrences with a comma delimiter
-    # Keep the leading separator group (start/space/comma) stable
-    s = _LABEL_ANYWHERE_RX.sub(", ", s)
-
-    # Normalize separators
-    s = re.sub(r"\s*,\s*", ", ", s)
-    s = re.sub(r"(,\s*){2,}", ", ", s).strip(" ,")
-    return s
-
-def _skills_tokens_from_lines(skills_lines):
-    """
-    Line-aware SKILLS parsing:
-    - process each line independently
-    - strip any 'Label:' groups anywhere in the line
-    - split only on commas/semicolons (Rule 9)
-    """
-    tokens = []
-    for line in skills_lines:
-        cleaned = _strip_skill_group_labels(line)
-        if not cleaned:
-            continue
-        toks = [t.strip() for t in _SPLIT.split(cleaned) if t.strip()]
-        tokens.extend(toks)
-    return tokens
-
-# ============================================================
-# Rulebook Skill Normalization / Removal (Rules 10–12)
+# Rule 10: Compound splits (must run BEFORE normalization)
 # ============================================================
 
 COMPOUND_SPLITS = {
@@ -159,35 +108,44 @@ COMPOUND_SPLITS = {
     "html/css": ["HTML", "CSS"],
     "oracle pl/sql": ["Oracle", "PL/SQL"],
     "scrum/kanban": ["Scrum", "Kanban"],
-    "NiFI GitLab": ["NiFI", "GitLab"],
-    "MongoDB Spring JPA": ["MongoDB Spring", "Spring JPA"],
-    "VMWare Java EE": ["VMWare", "Java EE"],
-    "Symantec. McAfee": ["Symantec", "McAfee"],
-    "PHP Visual Basic": ["PHP", "Visual Basic"],
-    "IDA Pro Lod4j": ["IDA Pro", "Lod4j"],  
-    "Tomcat Infinispan": ["Tomcat", "Infinispan"],
-    "Docker Swarm Docker Compose": ["Docker Swarm", "Docker Compose"],
-    "SLICK/ScalaQuery": ["SLICK", "ScalaQuery"]
+    "nifi gitlab": ["NiFI", "GitLab"],
+    "mongodb spring jpa": ["MongoDB Spring", "Spring JPA"],
+    "vmware java ee": ["VMWare", "Java EE"],
+    "symantec. mcafee": ["Symantec", "McAfee"],
+    "php visual basic": ["PHP", "Visual Basic"],
+    "ida pro lod4j": ["IDA Pro", "Lod4j"],  
+    "tomcat infinispan": ["Tomcat", "Infinispan"],
+    "docker swarm docker compose": ["Docker Swarm", "Docker Compose"],
+    "slick/scalaquery": ["SLICK", "ScalaQuery"],
+    "xml/sqd" : ["XML","SQD"],
+    "xml/xsd": ["XML", "XSD"]
 }
+
+# ============================================================
+# Rule 11: Skill normalization (always applied)
+# ============================================================
 
 SKILL_NORMALIZATION = {
     "amazon aws": "AWS",
-    "some AWS": "AWS",
-    "A WS": "AWS",
+    "some aws": "AWS",
+    "a ws": "AWS",
     "amazon": "AWS",
     "amazon ec2": "EC2",
     "ec2": "EC2",
-    "ArcGIS tools": "ArcGIS",
-    "ArcGIS Tools": "ArcGIS",
+    "arcgis tool": "ArcGIS",
+    "arcgis tools": "ArcGIS",
+    "bash scripting": "Bash",
     "extjs": "ExtJS",
     "ext.js": "ExtJS",
     "ida pro": "IDA Pro",
     "idapro": "IDA Pro",
     "jaws reader": "Jaws",
     "jupyter notebook": "Jupyter Notebooks",
+    "jupyter": "Jupyter Notebooks",
     "red hat": "RedHat",
     "mips assembly": "Mips",
     "network protocol suites": "Network Protocol",
+    "network protocols": "Network Protocol",
     "nodejs": "Node.js",
     "node.js": "Node.js",
     "objective c": "Objective‑C",
@@ -195,78 +153,99 @@ SKILL_NORMALIZATION = {
     "onnx runtime": "ONNX",
     "python3": "Python",
     "r studio": "R",
-    "and Identity Access Management": "Identity Access Management",
+    "and identity access management": "Identity Access Management",
     "groovy/grails tool suite": "Groovy/Grails",
-    "Groovy/Grails Tol Suite": "Groovy/Grails",
+    "groovy/grails tol suite": "Groovy/Grails",
+    "groovy": "Groovy/Grails",
     "sql-lite": "SQLite",
     "vue.js": "Vue",
     "vue.js": "Vue",
-    "Visual Studio Code": "VSCode",
-    "Visual Studio.": "VSCode",
-    "VS Code": "VSCode",
-    "MS Visual Studio": "VSCode",
-    "Ajax": "AJAX",
-    "RandomForests": "Random Forests",
-    "Gaussian Models.": "Gaussian Models",
-    "NAS and SAN storage arrays": "NAS/SAN Storage",
-    "XLINX design suite": "Xilinx",
-    "VISIO 2000": "Visio",
-    "MS Visio": "Visio",
-    "Microsoft Office Tools": "Microsoft Office",
-    "XLINX and Altera:": "FPGA Design",
-    "all LSI and MSI logic families": "LSI/MSI Logic",
-    "Spring Boot deployments": "Spring Boot",
-    "Linux Scripting": "LINUX",
-    "Linix": "LINUX",
-    "Cloudwatch": "CloudWatch",
-    "RES Instances": "RES",
-    "Lambdas": "Lambda",
-    "EC2 Instances": "EC2",
-    "ElasticSearch CVS": "Elasticsearch",
-    "Google EarthMaps API": "Google Earth",
-    "and Kiribati.": "Kiribati",
-    "Apache Nifi": "Apache NiFi",
-    "CVS.": "CVS",
+    "visual studio code": "VSCode",
+    "visual studio.": "VSCode",
+    "vs code": "VSCode",
+    "ms visual studio": "VSCode",
+    "ajax": "AJAX",
+    "randomforests": "Random Forests",
+    "gaussian models.": "Gaussian Models",
+    "nas and san storage arrays": "NAS/SAN Storage",
+    "xlinx design suite": "Xilinx",
+    "visio 2000": "Visio",
+    "ms visio": "Visio",
+    "microsoft office tools": "Microsoft Office",
+    "xlinx and altera:": "FPGA Design",
+    "all lsi and msi logic families": "LSI/MSI Logic",
+    "spring boot deployments": "Spring Boot",
+    "linux scripting": "LINUX",
+    "linix": "LINUX",
+    "linux servers": "LINUX",
+    "cloudwatch": "CloudWatch",
+    "res instances": "RES",
+    "lambdas": "Lambda",
+    "lambda": "Lambda",
+    "ec2 instances": "EC2",
+    "elasticSearch cvs": "Elasticsearch",
+    "google earthmaps api": "Google Earth",
+    "apache nifi": "Apache NiFi",
+    "cvs.": "CVS",
     "shell": "Shell",
-    "NiFI": "NiFi",
-    "Gitlab": "GitLab",
-    "OpenVPN.": "OpenVPN",
-    "VMware": "VMWare",
-    "XP": "Windows XP",
-    "Vista": "Windows Vista",
-    "Ubuntu.": "Ubuntu",
-    "Mash VM user.": "Mash VM",
-    "PKI": "PKIs",
-    "RemoveView.": "RemoveView",
+    "nifi": "NiFi",
+    "gitlab": "GitLab",
+    "openvpn.": "OpenVPN",
+    "vmware": "VMWare",
+    "xp": "Windows XP",
+    "vista": "Windows Vista",
+    "ubuntu.": "Ubuntu",
+    "mash vm user.": "Mash VM",
+    "pki": "PKIs",
+    "removeview.": "RemoveView",
     "clustering": "Clustering",
-    "Cluster Computing": "Clustering",
-    "Bash scripting": "Bash Scripting",
-    "HPC": "High Performance Computing",
-    "Rhel": "RHEL",
-    "Windows Server.": "Windows Servers",
-    "Window": "Windows",
-    "RemoteView.": "RemoteView",
-    "Microsoft Windows XP": "Windows XP",
-    "TomCat": "Tomcat",
-    "Matploblib": "Matplotlib",
-    "SGI hardware": "SGI",
-    "Microsoft": "Microsoft Office",
-    "SSH Protocols": "SSH",
-    "DNS Server Config": "DNS",
-    "Scrum": "SCRUM",
-    "Swager": "Swagger",
-    "Cisco works:": "Cisco",
-    "Cisco Prime.": "Cisco",
-    "Cisco event scripting": "Cisco",
-    "and MGX 8800 Series ATM Switches": "MGX 8800 Series ATM Switches",
-    "TCL.": "TCL",
-    "Juniper SRX series.": "Juniper SRX series"
+    "cluster computing": "Clustering",
+    "bash scripting": "Bash Scripting",
+    "hpc": "High Performance Computing",
+    "rhel": "RHEL",
+    "windows server.": "Windows Server",
+    "windows servers":"Windows Server",
+    "window": "Windows",
+    "remoteview.": "RemoteView",
+    "microsoft windows xp": "Windows XP",
+    "tomcat": "Tomcat",
+    "matploblib": "Matplotlib",
+    "sgu hardware": "SGI",
+    "microsoft": "Microsoft Office",
+    "ssh protocols": "SSH",
+    "dns server config": "DNS",
+    "scrum": "SCRUM",
+    "swager": "Swagger",
+    "cisco works:": "Cisco",
+    "cisco prime.": "Cisco",
+    "cisco event scripting": "Cisco",
+    "and mgx 8800 series atm switches": "MGX 8800 Series ATM Switches",
+    "tcl.": "TCL",
+    "juniper srx series.": "Juniper SRX series",
+    "and kiribati.": "Kiribati",
+    "and kiribiti.": "Kiribati",
+    "agile methodology": "Agile",
+    "apache http server": "Apache HTTP",
+    "consul and vault.":"Consultaiton and Vault",
+    "java spring cloud": "Java Spring",
+    "junit4/5": "Junit",
+    "macosx": "MacOS X",
+    "plsql": "PL/SQL",
+    "spark.ml": "Spark",
+    "sql developer": "SQL",
+    "tensor analysis tool kit": "Tensor Analysis",
+    "unix shell scripting": "UNIX"
 }
 
-REMOVED_SKILLS = {"amazon management console eclipse", "Associations/Honors"}
+ 
+# ============================================================
+# Rule 12: Skill removal
+# ============================================================
+
+REMOVED_SKILLS = {"amazon management console eclipse"}
 
 # ============================================================
-# Certification Normalization (CertificationFrequency only) + cosmetic merge is in rebuild
+# Rule 16: Certification normalization (CertificationFrequency ONLY)
 # ============================================================
 
 CERT_NORMALIZATION = {
@@ -281,13 +260,43 @@ CERT_NORMALIZATION = {
     "security +": "CompTIA Security+",
     "security+ (comptia)": "CompTIA Security+",
     "security+ ce": "CompTIA Security+",
-    "comptia security+ ce": "CompTIA Security+",
+    "comptia security+ ce": "CompTIA Security+"
 }
 
-# Degree normalization mapping (kept as your locked behavior)
+# ============================================================
+# Rule 18: Degree normalization mapping (explicit only)
+# ============================================================
+
 DEGREE_NORMALIZATION = {
     "bachelor in business admin": "B.S., Business and Administration"
 }
+
+# ============================================================
+# Generalized “Label:” stripping inside SKILLS section (locked feature)
+# ============================================================
+
+_LABEL_ANYWHERE_RX = re.compile(r"(?i)(^|[\s,])([A-Za-z][A-Za-z0-9 /&\-\+]{0,60})\s*:\s*")
+
+def _strip_skill_group_labels(line):
+    s = (line or "").strip()
+    if not s:
+        return ""
+    s = unicodedata.normalize("NFKC", s)
+    s = s.translate(_DASHES)
+    s = re.sub(r"\s+", " ", s).strip()
+    s = _LABEL_ANYWHERE_RX.sub(", ", s)
+    s = re.sub(r"\s*,\s*", ", ", s)
+    s = re.sub(r"(,\s*){2,}", ", ", s).strip(" ,")
+    return s
+
+def _skills_tokens_from_lines(skills_lines):
+    tokens = []
+    for line in skills_lines:
+        cleaned = _strip_skill_group_labels(line)
+        if not cleaned:
+            continue
+        tokens.extend([t.strip() for t in _SPLIT.split(cleaned) if t.strip()])
+    return tokens
 
 # ============================================================
 # Utilities
@@ -343,41 +352,83 @@ def _is_section_boundary(line):
     )
 
 # ============================================================
-# Persistent category map (JSON)
+# Rule 9–11 skill pipeline (canonical)
+# ============================================================
+
+def apply_compound_splitting(skill):
+    k = re.sub(r"\s+", " ", (skill or "").strip().lower()).strip()
+    return COMPOUND_SPLITS.get(k, [(skill or "").strip()])
+
+def normalize_skill(skill):
+    raw = (skill or "").strip()
+    k = re.sub(r"\s+", " ", raw.lower()).strip()
+    if k in REMOVED_SKILLS:
+        return None
+    return SKILL_NORMALIZATION.get(k, raw)
+
+def process_skills(skills_raw):
+    # Rule 9: dedupe within resume before further processing
+    skills_raw = dedupe_preserve_order(skills_raw)
+
+    # Rule 10: compound split
+    expanded = []
+    for s in skills_raw:
+        expanded.extend(apply_compound_splitting(s))
+
+    # Rule 11 + Rule 12
+    normalized = []
+    for s in expanded:
+        ns = normalize_skill(s)
+        if ns:
+            normalized.append(ns)
+
+    # final dedupe within resume
+    return dedupe_preserve_order(normalized)
+
+def parse_and_normalize_skills_from_cell(cell):
+    if cell is None or (isinstance(cell, float) and pd.isna(cell)):
+        return []
+    raw_tokens = [t.strip() for t in _SPLIT.split(str(cell)) if t.strip()]
+    return process_skills(raw_tokens)
+
+# ============================================================
+# Persistent category map (JSON) — FIX: canonicalize keys via pipeline
 # ============================================================
 
 def load_category_map(path: Path):
     if path.exists():
-        return json.loads(path.read_text(encoding="utf-8"))
-    return {}
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    else:
+        raw = {}
+
+    canon = {}
+    for key, cat in raw.items():
+        # canonicalize mapping key(s) through Rule 9–11
+        canon_keys = process_skills([key])
+        for ck in canon_keys:
+            canon[ck] = cat
+    return canon
 
 def save_category_map(path: Path, mapping: dict):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(mapping, indent=2, ensure_ascii=False), encoding="utf-8")
 
 # ============================================================
-# DOCX parsing (safe + line break handling)
+# DOCX parsing (safe + preserves internal line breaks)
 # ============================================================
 
 def _docx_lines(file_like):
-    """
-    Safe DOCX reader:
-    - returns [] if file is not a valid DOCX (BadZipFile)
-    - splits paragraph text on internal '\\n' to preserve line boundaries
-    """
     try:
         try:
             file_like.seek(0)
         except Exception:
             pass
-
         doc = Document(file_like)
         out = []
         for p in doc.paragraphs:
             raw = (p.text or "").strip()
             if not raw:
                 continue
-            # Preserve line boundaries inside a paragraph
             parts = [x.strip() for x in raw.split("\n") if x.strip()]
             out.extend(parts)
         return out
@@ -385,8 +436,7 @@ def _docx_lines(file_like):
         return []
 
 def peek_name_from_docx(file_like):
-    lines = _docx_lines(file_like)
-    for line in lines:
+    for line in _docx_lines(file_like):
         if not _is_section_boundary(line):
             return line.strip()
     return ""
@@ -399,7 +449,6 @@ def _section_lines(lines, header_set):
             break
     if start is None:
         return []
-
     out = []
     for line in lines[start:]:
         if _is_section_boundary(line):
@@ -420,6 +469,7 @@ def parse_resume_sections(file_like, name_override=None):
     edu_lines = _section_lines(lines, EDU_HEADERS)
     cert_lines = _section_lines(lines, CERT_HEADERS)
 
+    # Skills tokens are line-aware and label-stripped
     skills_raw = dedupe_preserve_order(_skills_tokens_from_lines(skills_lines))
     certs_raw = dedupe_preserve_order(split_on_commas_semicolons(" ".join(cert_lines).strip()))
 
@@ -432,52 +482,7 @@ def parse_resume_sections(file_like, name_override=None):
     }
 
 # ============================================================
-# Skills processing (Rules 9–12)
-# ============================================================
-
-def apply_compound_splitting(skill):
-    key = re.sub(r"\s+", " ", (skill or "").strip().lower()).strip()
-    return COMPOUND_SPLITS.get(key, [(skill or "").strip()])
-
-def normalize_skill(skill):
-    raw = (skill or "").strip()
-    key = re.sub(r"\s+", " ", raw.lower()).strip()
-    if key in REMOVED_SKILLS:
-        return None
-    return SKILL_NORMALIZATION.get(key, raw)
-
-def process_skills(skills_raw):
-    expanded = []
-    for s in skills_raw:
-        expanded.extend(apply_compound_splitting(s))
-
-    normalized = []
-    for s in expanded:
-        ns = normalize_skill(s)
-        if ns:
-            normalized.append(ns)
-
-    return dedupe_preserve_order(normalized)
-
-def parse_and_normalize_skills_from_cell(cell):
-    if cell is None or (isinstance(cell, float) and pd.isna(cell)):
-        return []
-    raw_tokens = [t.strip() for t in _SPLIT.split(str(cell)) if t.strip()]
-
-    expanded = []
-    for t in raw_tokens:
-        expanded.extend(apply_compound_splitting(t))
-
-    normalized = []
-    for t in expanded:
-        ns = normalize_skill(t)
-        if ns:
-            normalized.append(ns)
-
-    return dedupe_preserve_order(normalized)
-
-# ============================================================
-# Skill categorization (Rule 13 strict)
+# Mapping from existing By Category
 # ============================================================
 
 def build_category_map_from_by_category(by_cat):
@@ -512,6 +517,7 @@ def resolve_conflicts_with_user(conflicts, category_map):
     return category_map
 
 def categorize_skills_with_user(skills, category_map, resume_label=""):
+    # IMPORTANT: skills list here is already normalized by process_skills()
     unknown = [s for s in skills if s not in category_map]
     if unknown:
         st.warning(f"Uncategorized skills found in {resume_label}. Assign each to one category.")
@@ -545,7 +551,7 @@ def categorize_skills_with_user(skills, category_map, resume_label=""):
     return categorized, category_map
 
 # ============================================================
-# Education + Years of Experience
+# Education + Years of Experience (Rule 8/18)
 # ============================================================
 
 def extract_degree_lines(edu_lines):
@@ -607,6 +613,7 @@ def upsert_candidate_row(by_cat, name, skills_by_category, certs_raw, degrees_by
     row["Name"] = name_norm
     row["Years of Experience"] = compute_years_experience(earliest_degree_year)
 
+    # ✅ Stored skills are always normalized tokens (fix)
     for col in SKILL_CATEGORY_COLS:
         row[col] = ", ".join(skills_by_category.get(col, []))
 
@@ -619,10 +626,10 @@ def upsert_candidate_row(by_cat, name, skills_by_category, certs_raw, degrees_by
     return pd.concat([by_cat, pd.DataFrame([row])], ignore_index=True)
 
 # ============================================================
-# SkillFrequency (Rule 14) — cosmetic merge
+# SkillFrequency (Rule 14) — rebuilt from normalized tokens
 # ============================================================
 
-def _skill_key(s):
+def _skill_freq_key(s):
     s = unicodedata.normalize("NFKC", (s or "").strip()).translate(_DASHES)
     s = re.sub(r"\s+", " ", s).strip()
     return s.casefold()
@@ -636,7 +643,7 @@ def rebuild_skill_frequency(by_cat):
         per_candidate = set()
         for col in SKILL_CATEGORY_COLS:
             for s in parse_and_normalize_skills_from_cell(r.get(col, "")):
-                k = _skill_key(s)
+                k = _skill_freq_key(s)
                 if k:
                     per_candidate.add(k)
                     label_votes[k][s] += 1
