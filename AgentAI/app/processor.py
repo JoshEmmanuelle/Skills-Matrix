@@ -2,6 +2,7 @@ import io
 import re
 import json
 import unicodedata
+import html
 from pathlib import Path
 from collections import defaultdict, Counter
 from zipfile import BadZipFile
@@ -35,7 +36,7 @@ REQUIRED_COLUMNS = [
     "Degree/Associates",
     "Degree/Bachelors",
     "Degree/Masters",
-    "Degree/Phds",
+    "Degree/Phds"
 ]
 
 SKILL_CATEGORY_COLS = [
@@ -50,7 +51,7 @@ SKILL_CATEGORY_COLS = [
     "Networking",
     "Version Control",
     "Tools",
-    "Other",
+    "Other"
 ]
 
 SKILLS_HEADERS = {
@@ -58,7 +59,7 @@ SKILLS_HEADERS = {
     "technical skills",
     "skills/tools",
     "skills/tools/technologies",
-    "skills & tools",
+    "skills & tools"
 }
 
 EDU_HEADERS = {"education", "educations"}
@@ -117,7 +118,8 @@ COMPOUND_SPLITS = {
     "docker swarm docker compose": ["Docker Swarm", "Docker Compose"],
     "slick/scalaquery": ["SLICK", "ScalaQuery"],
     "xml/sqd" : ["XML","SQD"],
-    "xml/xsd": ["XML", "XSD"]
+    "xml/xsd": ["XML", "XSD"],
+    "analog/digital oscilloscope":["Analog Oscilloscope","Digital Oscilloscope"]
 }
 
 # ============================================================
@@ -160,6 +162,7 @@ SKILL_NORMALIZATION = {
     "vue.js": "Vue",
     "vue.js": "Vue",
     "visual studio code": "VSCode",
+    "visual studio": "VSCode",
     "visual studio.": "VSCode",
     "vs code": "VSCode",
     "ms visual studio": "VSCode",
@@ -233,7 +236,15 @@ SKILL_NORMALIZATION = {
     "spark.ml": "Spark",
     "sql developer": "SQL",
     "tensor analysis tool kit": "Tensor Analysis",
-    "unix shell scripting": "UNIX"
+    "unix shell scripting": "UNIX",
+    "ansible": "Ansible",
+    "yml specs.":"YAML",
+    ".bt templates":"bt templates",
+    "x86 assembly": "x86",
+    "x86dgb":"x86",
+    "signal generator": "Signal Generator",
+    "digital logic analyzer": "Digital Logic Analyzer",
+    "Sharepoint":"SharePoint"
 }
 
  
@@ -284,22 +295,28 @@ CERT_NORMALIZATION = {
 # ============================================================
 
 def _degree_lookup_key(line: str) -> str:
-    s = unicodedata.normalize("NFKC", (line or "")).translate(_DASHES)
+    s = html.unescape(line or "")
+    s = unicodedata.normalize("NFKC", s).translate(_DASHES)
     s = re.sub(r"\s+", " ", s).strip()
     return s.lower()
 
 
 # Your explicit entries (you said you manually lowercased long keys as needed)
 DEGREE_NORMALIZATION = {
-    # --- Your explicit entries ---
+    "a.a., computer science": "A.S., Computer Science",
     "b.a. in computer science degree": "B.S., Computer Science",
     "b.a. in middle east studies / arabic": "B.S., Middle East Studies / Arabic",
     "b.a., mathematics/computer science": "B.S., Mathematics/Computer Science",
     "b.s. computer information systems, may 2011": "B.S., Computer Information Systems",
     "b.s. computer science": "B.S., Computer Science",
     "b.s. electrical engineering (1996)": "B.S., Electrical Engineering",
-    "b.s. in computer networks & cybersecurity": "B.S., Computer Networks & Cybersecurity",
+    "b.s., science, electrical engineering": "B.S., Science, Electrical Engineering",
+    "bachelors of science, electrical engineering": "B.S., Electrical Engineering",
+    "b.s. in computer networks & cybersecurity": "B.S., Computer Networks and Cybersecurity",
+    "b.s., cyber security": "B.S., Cybersecurity",
     "b.s., business and administration, 2018": "B.S., Business and Administration",
+    "bachelor in business admin": "B.S., Business and Administration",
+    "b.s., business administration": "B.S., Business and Administration",
     "b.s., computer science (minor: business administration), towson university, 12/2010": "B.S., Computer Science",
     "b.s., computer science - university of maryland baltimore county (1999)": "B.S., Computer Science",
     "b.s., computer science, college of computer": "B.S., Computer Science",
@@ -313,27 +330,34 @@ DEGREE_NORMALIZATION = {
     "bachelor of science in history": "B.S., History",
     "bachelor of science, electrical engineering, bucknell university, lewisburg pa (1984)": "B.S., Electrical Engineering",
     "bs in cybersecurity and computer science, mount st. mary’s university, december 2021": "B.S., Cybersecurity and Computer Science",
-    "bs, business administration": "B.S., Business Administration",
+    "bs, business administration": "B.S., Business and Administration",
     "bs, computer science": "B.S., Computer Science",
     "bs, computer science - cyber": "B.S., Computer Science - Cyber",
     "bs, computer science, university of baltimore, 1986": "B.S., Computer Science",
     "bs, cybersecurity": "B.S., Cybersecurity",
     "bs, economics": "B.S., Economics",
     "bs, information technology": "B.S., Information Technology",
-    "bachelor in business admin": "B.S., Business and Administration",
     "2005: ba from the college of william and mary major in international studies and minor in computer science.": "B.S., International Studies and minor in Computer Science",
     "(in progress) bs in computer networks and security umuc": "B.S., Computer Networks and Security",
+    "b.s., computer engineering technology": "B.S., Computer Engineering",
     "m.s.,data analytics": "M.S., Data Analytics",
     "master of business administration (mba)": "MBA",
     "master’s in business administration (mba)": "MBA",
     "mba, information technology": "MBA",
     "mba, university of baltimore, 1992": "MBA",
     "m.s.,computer science": "M.S., Computer Science",
+    "m.s.,computer in science": "M.S., Computer Science",
     "master of science, computer science, johns hopkins university, baltimore md (1997)": "M.S., Computer Science",
     "master of science, electrical engineering": "M.S., Electrical Engineering",
-    "master of science, electrical engineering, johns hopkins university, baltimore md (1989)": "M.S., Electrical Engineering"
+    "master of science, electrical engineering, johns hopkins university, baltimore md (1989)": "M.S., Electrical Engineering",
+    "master’s of science in geographic information systems": "M.S., Geographic Information Systems",
+    "m.s., engineering science": "M.S., Engineering",
+    "m.s., digital forensics and cyber investigation": "M.S., Digital Forensics and Cyber Investigations",
     
 }    
+
+# Canonicalize DEGREE_NORMALIZATION keys once (keeps ONE dict variable)
+DEGREE_NORMALIZATION = {_degree_lookup_key(k): v for k, v in DEGREE_NORMALIZATION.items()}
 
 # Deterministic cleanup patterns
 _degree_year_rx = re.compile(r"\b(19\d{2}|20\d{2})\b")
@@ -341,18 +365,21 @@ _degree_month_rx = re.compile(
     r"\b(?:jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)\b",
     re.I
 )
-_degree_inst_rx = re.compile(r"\b(university|college|school|institute|campus)\b", re.I)
+_degree_inst_rx = re.compile(r"\b(university|college|school|johns hopkins|anne arundel cc|institute|campus)\b", re.I)
 _degree_minor_rx = re.compile(r"\bminor\b", re.I)
 
 def _degree_generic_cleanup(line: str) -> str:
     """
     Deterministic cleanup (Rule 18.1):
     - remove parentheticals containing year/month/minor
-    - remove trailing comma segments containing year/month/institution
+    - remove trailing comma segments containing year/month/institution (incl CC/community college)
     - normalize prefixes: BA/BS/Bachelor->B.S., MS/Master->M.S.
-    - enforce comma format after B.S./M.S.
+    - fix double period: B.S.. -> B.S.
+    - enforce comma format after abbreviations
+    - remove punctuation-only segments like "." (prevents "B.S., ., X")
     """
-    s = unicodedata.normalize("NFKC", (line or "")).translate(_DASHES).strip()
+    s = html.unescape(line or "")
+    s = unicodedata.normalize("NFKC", s).translate(_DASHES).strip()
     if not s:
         return ""
 
@@ -381,26 +408,51 @@ def _degree_generic_cleanup(line: str) -> str:
     s = re.sub(r"^B\.A\b", "B.S.", s, flags=re.I)
     s = re.sub(r"^BS\b", "B.S.", s, flags=re.I)
     s = re.sub(r"^B\.S\b", "B.S.", s, flags=re.I)
+    s = re.sub(r"^Bachelor of\b", "B.S.", s, flags=re.I)
+    s = re.sub(r"^Bachelors of\b", "B.S.", s, flags=re.I)
+    s = re.sub(r"^Bachelors of,\b", "B.S.", s, flags=re.I)
+    s = re.sub(r"^Bachelor in\b", "B.S.", s, flags=re.I)
+    s = re.sub(r"^Bachelors in\b", "B.S.", s, flags=re.I)
+    s = re.sub(r"^Bachelors in,\b", "B.S.", s, flags=re.I)
+    s = re.sub(r"^Bachelor in,\b", "B.S.", s, flags=re.I)
     s = re.sub(r"^Bachelor of (Science|Arts)\b", "B.S.", s, flags=re.I)
     s = re.sub(r"^Bachelor of Engineering\b", "B.S.", s, flags=re.I)
 
     s = re.sub(r"^MS\b", "M.S.", s, flags=re.I)
     s = re.sub(r"^M\.S\b", "M.S.", s, flags=re.I)
+    s = re.sub(r"^M\.S\ in\b", "M.S.", s, flags=re.I)
+    s = re.sub(r"^M.S., in\b", "M.S.", s, flags=re.I)
     s = re.sub(r"^Master of Science\b", "M.S.", s, flags=re.I)
+    s = re.sub(r"^Master of Sciences,\b", "M.S.", s, flags=re.I)
+    s = re.sub(r"^Masters of Science,\b", "M.S.", s, flags=re.I)
+    s = re.sub(r"^Masters of Science\b", "M.S.", s, flags=re.I)
+    s = re.sub(r"^Masters of Sciences,\b", "M.S.", s, flags=re.I)
     s = re.sub(r"^Master in\b", "M.S.", s, flags=re.I)
+    s = re.sub(r"^Masters in\b", "M.S.", s, flags=re.I)
+    s = re.sub(r"^Masters in,\b", "M.S.", s, flags=re.I)
+    s = re.sub(r"^Master in,\b", "M.S.", s, flags=re.I)
 
-    # ✅ FIX: remove punctuation-only segments like "." that create "B.S., ., X"
+
+    # Fix double period bug in abbreviations: B.S.. -> B.S.
+    s = re.sub(r"\b(B\.S|M\.S|A\.S|A\.A|B\.A)\.\.", r"\1.", s, flags=re.I)
+    s = re.sub(r"\.\.+", ".", s)  # safe within degree strings
+
+    # Enforce comma formatting after abbreviations
+    s = re.sub(r"^(B\.S\.|M\.S\.|A\.S\.|A\.A\.)\s*(?!,)", r"\1, ", s)
+    s = re.sub(r"\s*,\s*", ", ", s)
+    s = re.sub(r"\s+", " ", s).strip()
+
+    # Remove punctuation-only comma segments ('.', '--', etc.)
     segs = [seg.strip() for seg in s.split(",")]
     segs = [seg for seg in segs if seg and seg not in {".", "..", "..."}]
-    # also remove segments that are only punctuation
     cleaned_segs = []
     for seg in segs:
-        only_punct = re.fullmatch(r"[.\-–—_]+", seg) is not None
-        if not only_punct:
-            cleaned_segs.append(seg)
+        if re.fullmatch(r"[.\-–—_]+", seg):
+            continue
+        cleaned_segs.append(seg)
     s = ", ".join(cleaned_segs).strip()
 
-    # re-normalize comma spacing again
+    # Final comma normalization
     s = re.sub(r"\s*,\s*", ", ", s).strip(" ,")
     return s
 
@@ -431,9 +483,8 @@ def _skills_tokens_from_lines(skills_lines):
         tokens.extend([t.strip() for t in _SPLIT.split(cleaned) if t.strip()])
     return tokens
 
-
 # ============================================================
-# Certification parsing + cleaning (NEW FIX)
+# Certification parsing + cleaning (as previously implemented)
 # ============================================================
 
 _MONTHS_RX = r"(?:jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)"
@@ -445,7 +496,6 @@ _re_long_id = re.compile(r"\b[A-Z0-9]{8,}\b")
 _re_code_like = re.compile(r"\b(?:COMP\d+|F\w{10,}|V\w{10,})\b", re.I)
 _re_metadata_words = re.compile(r"\b(certification issued|Cert|Analyst# 10080|License|October|present|udemy courses|self-study|certification issues|issued|exp\.?|expires|Cert# 11073|expiration|taking test|attended Reinvent conference|202|in process)\b", re.I)
 
-
 def _canon_text(s: str) -> str:
     s = unicodedata.normalize("NFKC", (s or "")).translate(_DASHES)
     s = re.sub(r"\s+", " ", s).strip()
@@ -454,19 +504,14 @@ def _canon_text(s: str) -> str:
 def _cert_lookup_key(s: str) -> str:
     return _canon_text(s).casefold()
 
-
 def clean_cert_token(token: str) -> str:
-    """Clean a single certification token deterministically (no inference)."""
     if token is None:
         return ""
     s = _canon_text(str(token))
     if not s:
         return ""
-
-    # drop leading bullets
     s = re.sub(r"^[•\-\u2022\t\s]+", "", s).strip()
 
-    # remove parenthetical metadata if it contains date/year or issuance words
     def paren_repl(m):
         inner = m.group(1)
         if _re_year.search(inner) or _re_mmddyyyy.search(inner) or _re_month_year.search(inner) or _re_metadata_words.search(inner):
@@ -475,59 +520,37 @@ def clean_cert_token(token: str) -> str:
 
     s = _re_paren.sub(paren_repl, s)
 
-    # cut off at metadata word occurrence (e.g., 'certification issued')
     m = _re_metadata_words.search(s)
     if m:
         s = s[:m.start()].strip(" -;:,.\t")
 
-    # remove date patterns
     s = _re_month_year.sub("", s)
     s = _re_mmddyyyy.sub("", s)
-    # remove years
     s = _re_year.sub("", s)
-    # remove IDs / codes
     s = _re_code_like.sub("", s)
     s = _re_long_id.sub("", s)
 
-    # remove trailing keywords 'Certification' / 'Certificate'
     s = re.sub(r"\b(Certification|Certificate|certification|certificate|cert|Cert)\b\.?$", "", s, flags=re.I).strip()
-
-    # normalize spaces and separators
     s = re.sub(r"\s+", " ", s).strip(" ;,-")
 
-    # apply normalization mapping (explicit)
     key = _cert_lookup_key(s)
     if key in CERT_NORMALIZATION:
         s = CERT_NORMALIZATION[key]
 
     return s.strip()
 
-
 def clean_certifications_from_lines(cert_lines):
-    """
-    Extract + clean certifications from Certification section lines.
-    - Split only on commas/semicolons (Rule 15)
-    - Treat line boundaries as separate entries (docx line-aware)
-    - Remove dates/years/ids/issuance text
-    - Output deterministic list
-    """
     cleaned = []
     for line in cert_lines:
         line = _canon_text(line)
         if not line:
             continue
-        # split only on commas/semicolons
         parts = [p.strip() for p in _SPLIT.split(line) if p.strip()]
-        if not parts:
-            continue
         for p in parts:
             c = clean_cert_token(p)
             if c:
                 cleaned.append(c)
-
-    # dedupe preserve order
     return list(dict.fromkeys(cleaned))
-
 
 # ============================================================
 # Utilities
@@ -555,13 +578,8 @@ def dedupe_preserve_order(items):
             out.append(t)
     return out
 
-def split_on_commas_semicolons(text):
-    if not text:
-        return []
-    return [p.strip() for p in _SPLIT.split(text) if p.strip()]
-
 def _clean_header(s):
-    return (s or "").strip().lower()
+    return (s or "").strip().rstrip(":").lower()
 
 def _is_all_caps_header(line):
     t = (line or "").strip()
@@ -583,7 +601,7 @@ def _is_section_boundary(line):
     )
 
 # ============================================================
-# Rule 9–11 skill pipeline (canonical)
+# Skill pipeline (Rule 9–11)
 # ============================================================
 
 def apply_compound_splitting(skill):
@@ -598,22 +616,15 @@ def normalize_skill(skill):
     return SKILL_NORMALIZATION.get(k, raw)
 
 def process_skills(skills_raw):
-    # Rule 9: dedupe within resume before further processing
     skills_raw = dedupe_preserve_order(skills_raw)
-
-    # Rule 10: compound split
     expanded = []
     for s in skills_raw:
         expanded.extend(apply_compound_splitting(s))
-
-    # Rule 11 + Rule 12
     normalized = []
     for s in expanded:
         ns = normalize_skill(s)
         if ns:
             normalized.append(ns)
-
-    # final dedupe within resume
     return dedupe_preserve_order(normalized)
 
 def parse_and_normalize_skills_from_cell(cell):
@@ -623,26 +634,46 @@ def parse_and_normalize_skills_from_cell(cell):
     return process_skills(raw_tokens)
 
 # ============================================================
-# Persistent category map (JSON) — FIX: canonicalize keys via pipeline
+# Persistent category map (canonicalize keys)
 # ============================================================
 
 def load_category_map(path: Path):
-    if path.exists():
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    else:
-        raw = {}
-
-    canon = {}
-    for key, cat in raw.items():
-        # canonicalize mapping key(s) through Rule 9–11
-        canon_keys = process_skills([key])
-        for ck in canon_keys:
-            canon[ck] = cat
-    return canon
+    """
+    Loads skill->category mappings from JSON.
+    Returns {} if missing or invalid JSON.
+    """
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
 
 def save_category_map(path: Path, mapping: dict):
+    """
+    Merge-safe persistence:
+    - Keeps any existing mappings on disk that are missing from `mapping`
+    - Applies updates from `mapping` (explicit new/changed choices win)
+    - Prevents manual JSON edits from being lost across runs
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(mapping, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    # Load existing mappings (if any) WITHOUT losing them
+    existing = {}
+    if path.exists():
+        try:
+            existing = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            existing = {}
+
+    # Merge: existing keys remain unless overridden by new mapping
+    merged = dict(existing)
+    merged.update(mapping)
+
+    path.write_text(
+        json.dumps(merged, indent=2, ensure_ascii=False),
+        encoding="utf-8"
+    )
 
 # ============================================================
 # DOCX parsing (safe + preserves internal line breaks)
@@ -660,8 +691,7 @@ def _docx_lines(file_like):
             raw = (p.text or "").strip()
             if not raw:
                 continue
-            parts = [x.strip() for x in raw.split("\n") if x.strip()]
-            out.extend(parts)
+            out.extend([x.strip() for x in raw.split("\n") if x.strip()])
         return out
     except (BadZipFile, Exception):
         return []
@@ -691,20 +721,14 @@ def parse_resume_sections(file_like, name_override=None):
     file_like.seek(0)
     lines = _docx_lines(file_like)
 
-    name = (name_override or "").strip()
-    if not name:
-        file_like.seek(0)
-        name = peek_name_from_docx(file_like)
+    name = (name_override or "").strip() or peek_name_from_docx(file_like)
 
     skills_lines = _section_lines(lines, SKILLS_HEADERS)
     edu_lines = _section_lines(lines, EDU_HEADERS)
     cert_lines = _section_lines(lines, CERT_HEADERS)
 
-    # Skills tokens are line-aware and label-stripped
     skills_raw = dedupe_preserve_order(_skills_tokens_from_lines(skills_lines))
-    #certs_raw = dedupe_preserve_order(split_on_commas_semicolons(" ".join(cert_lines).strip()))
     certs_raw = clean_certifications_from_lines(cert_lines)
-
 
     return {
         "name": name,
@@ -725,8 +749,7 @@ def build_category_map_from_by_category(by_cat):
 
     for _, row in by_cat.iterrows():
         for col in SKILL_CATEGORY_COLS:
-            skills = parse_and_normalize_skills_from_cell(row.get(col, ""))
-            for s in skills:
+            for s in parse_and_normalize_skills_from_cell(row.get(col, "")):
                 if s in mapping and mapping[s] != col:
                     conflicts[s].update({mapping[s], col})
                 else:
@@ -735,7 +758,7 @@ def build_category_map_from_by_category(by_cat):
     conflicts = {k: v for k, v in conflicts.items() if len(v) > 1}
     return mapping, conflicts
 
-def resolve_conflicts_with_user(conflicts, category_map):
+def resolve_conflicts_with_user(conflicts, category_map): 
     st.error("Conflicts found: same skill appears under multiple columns.")
     for skill in sorted(conflicts.keys(), key=lambda x: x.lower()):
         options = sorted(list(conflicts[skill]))
@@ -750,7 +773,7 @@ def resolve_conflicts_with_user(conflicts, category_map):
     return category_map
 
 def categorize_skills_with_user(skills, category_map, resume_label=""):
-    # IMPORTANT: skills list here is already normalized by process_skills()
+    skills = process_skills(skills)
     unknown = [s for s in skills if s not in category_map]
     if unknown:
         st.warning(f"Uncategorized skills found in {resume_label}. Assign each to one category.")
@@ -784,11 +807,15 @@ def categorize_skills_with_user(skills, category_map, resume_label=""):
     return categorized, category_map
 
 # ============================================================
-# Education + Years of Experience (Rule 8/18)
+# Degree extraction + cleanup mapping (Rule 18.1)
 # ============================================================
 
 def extract_degree_lines(edu_lines):
-    rx = re.compile(r"\b(Ph\.?D|PhD|Doctor|M\.?S|MBA|Master|B\.?S|B\.?A|BA|Bachelor|A\.?S|A\.?A|AS|Associate)\b", re.I)
+    #rx = re.compile(r"\b(Ph\.?D|PhD|Doctor|M\.?S|MBA|Master|B\.?S|B\.?A|BA|Bachelor|A\.?S|A\.?A|Associate)\b", re.I)
+    rx = re.compile(
+    r"(?:\b(Ph\.?D|PhD|Doctor|M\.?S|MBA|Master|Masters|Master's|B\.?S|B\.?A|BA|Bachelor|Bachelors|Bachelor's|Associate)\b|\bA\.\s*[SA]\.(?=\s|,|$))",
+    re.I
+)   
     out = []
     for line in edu_lines:
         if rx.search(line):
@@ -796,15 +823,22 @@ def extract_degree_lines(edu_lines):
     return dedupe_preserve_order(out)
 
 def classify_degree(deg):
-    d = (deg or "").lower()
-    if "ph.d" in d or "phd" in d or "doctor" in d:
+    d = (deg or "")
+    low = d.lower()
+
+    if re.search(r"\bph\.?d\b|\bdoctor\b", low):
         return "Degree/Phds"
-    if "m.s" in d or "ms" in d or "mba" in d or "master" in d:
+
+    if re.search(r"\bm\.?s\.?\b|\bms\b|\bmba\b|\bmasters\b|\bmaster\b", low):
         return "Degree/Masters"
-    if "b.s" in d or "b.a" in d or "bachelor" in d:
+    
+    if re.search(r"\bb\.?s\.?\b|\bb\.?a\.?\b|\bbachelor\b|\bbachelors\b", low):
         return "Degree/Bachelors"
-    if "a.s" in d or "a.a" in d or "associate" in d:
+    
+    if re.search(r"\ba\.?s\.?\b|\ba\.?a\.?\b|\bassociate\b", low):
         return "Degree/Associates"
+
+    # default bachelors if not above
     return "Degree/Bachelors"
 
 def apply_degrees(edu_lines, edu_text):
@@ -852,20 +886,18 @@ def upsert_candidate_row(by_cat, name, skills_by_category, certs_raw, degrees_by
     row["Name"] = name_norm
     row["Years of Experience"] = compute_years_experience(earliest_degree_year)
 
-    # ✅ Stored skills are always normalized tokens (fix)
     for col in SKILL_CATEGORY_COLS:
         row[col] = ", ".join(skills_by_category.get(col, []))
 
     row["Certifications"] = "; ".join(dedupe_preserve_order(certs_raw))
 
     for col in ["Degree/Associates", "Degree/Bachelors", "Degree/Masters", "Degree/Phds"]:
-        vals = degrees_by_col.get(col, [])
-        row[col] = "; ".join(dedupe_preserve_order(vals))
+        row[col] = "; ".join(dedupe_preserve_order(degrees_by_col.get(col, [])))
 
     return pd.concat([by_cat, pd.DataFrame([row])], ignore_index=True)
 
 # ============================================================
-# SkillFrequency (Rule 14) — rebuilt from normalized tokens
+# Frequency rebuilds
 # ============================================================
 
 def _skill_freq_key(s):
@@ -891,18 +923,13 @@ def rebuild_skill_frequency(by_cat):
 
     key_to_label = {}
     for k, votes in label_votes.items():
-        best = sorted(votes.items(), key=lambda kv: (-kv[1], kv[0].casefold(), kv[0]))[0][0]
-        key_to_label[k] = best
+        key_to_label[k] = sorted(votes.items(), key=lambda kv: (-kv[1], kv[0].casefold(), kv[0]))[0][0]
 
     rows = []
     for k in sorted(counts.keys(), key=lambda x: key_to_label.get(x, x).casefold()):
         rows.append({"Skill": key_to_label.get(k, k), "Candidate Count": int(counts[k])})
 
     return pd.DataFrame(rows, columns=["Skill", "Candidate Count"])
-
-# ============================================================
-# CertificationFrequency (Rule 17 + Rule 16 + cosmetic merge)
-# ============================================================
 
 def _cert_key(s):
     s = unicodedata.normalize("NFKC", (s or "").strip()).translate(_DASHES)
@@ -942,18 +969,13 @@ def rebuild_cert_frequency(by_cat):
 
     key_to_label = {}
     for k, votes in label_votes.items():
-        best = sorted(votes.items(), key=lambda kv: (-kv[1], kv[0].casefold(), kv[0]))[0][0]
-        key_to_label[k] = best
+        key_to_label[k] = sorted(votes.items(), key=lambda kv: (-kv[1], kv[0].casefold(), kv[0]))[0][0]
 
     rows = []
     for k in sorted(counts.keys(), key=lambda x: key_to_label.get(x, x).casefold()):
         rows.append({"Certification": key_to_label.get(k, k), "Candidate Count": int(counts[k])})
 
     return pd.DataFrame(rows, columns=["Certification", "Candidate Count"])
-
-# ============================================================
-# DegreeFrequency (Rule 19)
-# ============================================================
 
 def rebuild_degree_frequency(by_cat, col):
     by_cat = ensure_by_category_columns(by_cat)
@@ -968,10 +990,8 @@ def rebuild_degree_frequency(by_cat, col):
         for d in set(degrees):
             counts[d] += 1
 
-    return pd.DataFrame(
-        sorted(counts.items(), key=lambda x: x[0].lower()),
-        columns=["Degree", "Candidate Count"]
-    )
+    return pd.DataFrame(sorted(counts.items(), key=lambda x: x[0].lower()),
+                        columns=["Degree", "Candidate Count"])
 
 # ============================================================
 # Excel I/O
