@@ -81,10 +81,9 @@ NON_EXTRACTABLE_HEADERS = {
     "organizations",
     "activities",
     "references",
-    "Associations/Honors:"
+    "Associations/Honors:",
     "Associations:",
     "Honors:"
-    "Associations/Honors:"
 }
 
 _SPLIT = re.compile(r"[;,]")
@@ -249,27 +248,161 @@ REMOVED_SKILLS = {"amazon management console eclipse"}
 # ============================================================
 
 CERT_NORMALIZATION = {
-    "certified scrum master (csm)": "Certified Scrum Master",
+    "aws solutions architect": "AWS Certified Solutions Architect - Associate",
+    "aws solutions architect - associate (aws certified)": "AWS Certified Solutions Architect - Associate",
     "aws solutions architect associate": "AWS Certified Solutions Architect - Associate",
     "aws solutions architect – associate": "AWS Certified Solutions Architect - Associate",
     "aws solutions certified - associate": "AWS Certified Solutions Architect - Associate",
+    "aws certified developer": "AWS Certified Developer - Associate",
+    "aws solutions architect (in process)": "AWS Certified Solutions Architect - Associate",
+    "self-study (udemy courses): aws cloud practitioner": "AWS Certified Cloud Practitioner",
     "ccna (cisco certified network associate)": "CCNA",
     "ccna certification": "CCNA",
     "itil v3 foundation": "ITIL v3.0",
+    "iril v3 foundation (cert# 894862)": "ITIL v3.0",
     "security+": "CompTIA Security+",
     "security +": "CompTIA Security+",
     "security+ (comptia)": "CompTIA Security+",
     "security+ ce": "CompTIA Security+",
-    "comptia security+ ce": "CompTIA Security+"
+    "comptia security+ ce": "CompTIA Security+",
+    "comptia – security+": "CompTIA Security+",
+    "comptia - security+": "CompTIA Security+",
+    "comptia security+ ()":"CompTIA Security+",
+    "security+ certification": "CompTIA Security+",
+    "comptia networking +": "CompTIA Network+",
+    "certified scrum master (csm)": "Certified Scrum Master",
+    "certified scrum master": "Scrum Master",
+    "certified scrum master - scrum alliance": "Scrum Master",
+    "scrum alliance certified scrum master": "Scrum Master",
+    "pmi agile certified practitioner (pmi-acp)":"PMI-ACP (Agile Certified Practitioner)",
+    "pmp - project management institute (pmi)":"PMP (Project Management Professional)"
+       
 }
 
 # ============================================================
 # Rule 18: Degree normalization mapping (explicit only)
 # ============================================================
 
+def _degree_lookup_key(line: str) -> str:
+    s = unicodedata.normalize("NFKC", (line or "")).translate(_DASHES)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s.lower()
+
+
+# Your explicit entries (you said you manually lowercased long keys as needed)
 DEGREE_NORMALIZATION = {
-    "bachelor in business admin": "B.S., Business and Administration"
-}
+    # --- Your explicit entries ---
+    "b.a. in computer science degree": "B.S., Computer Science",
+    "b.a. in middle east studies / arabic": "B.S., Middle East Studies / Arabic",
+    "b.a., mathematics/computer science": "B.S., Mathematics/Computer Science",
+    "b.s. computer information systems, may 2011": "B.S., Computer Information Systems",
+    "b.s. computer science": "B.S., Computer Science",
+    "b.s. electrical engineering (1996)": "B.S., Electrical Engineering",
+    "b.s. in computer networks & cybersecurity": "B.S., Computer Networks & Cybersecurity",
+    "b.s., business and administration, 2018": "B.S., Business and Administration",
+    "b.s., computer science (minor: business administration), towson university, 12/2010": "B.S., Computer Science",
+    "b.s., computer science - university of maryland baltimore county (1999)": "B.S., Computer Science",
+    "b.s., computer science, college of computer": "B.S., Computer Science",
+    "b.s., electrical and computer engineering (minor in german)": "B.S., Electrical and Computer Engineering",
+    "b.s., information systems management, university of maryland baltimore county (1988)": "B.S., Information Systems Management",
+    "ba english, bryn mawr college": "B.S., English",
+    "bachelor of engineering in computer science": "B.S., Computer Science",
+    "bachelor of science degree, electronic media engineering": "B.S., Electronic Media Engineering",
+    "bachelor of science electrical engineering": "B.S., Electrical Engineering",
+    "bachelor of science in computer and information science": "B.S., Computer and Information Science",
+    "bachelor of science in history": "B.S., History",
+    "bachelor of science, electrical engineering, bucknell university, lewisburg pa (1984)": "B.S., Electrical Engineering",
+    "bs in cybersecurity and computer science, mount st. mary’s university, december 2021": "B.S., Cybersecurity and Computer Science",
+    "bs, business administration": "B.S., Business Administration",
+    "bs, computer science": "B.S., Computer Science",
+    "bs, computer science - cyber": "B.S., Computer Science - Cyber",
+    "bs, computer science, university of baltimore, 1986": "B.S., Computer Science",
+    "bs, cybersecurity": "B.S., Cybersecurity",
+    "bs, economics": "B.S., Economics",
+    "bs, information technology": "B.S., Information Technology",
+    "bachelor in business admin": "B.S., Business and Administration",
+    "2005: ba from the college of william and mary major in international studies and minor in computer science.": "B.S., International Studies and minor in Computer Science",
+    "(in progress) bs in computer networks and security umuc": "B.S., Computer Networks and Security",
+    "m.s.,data analytics": "M.S., Data Analytics",
+    "master of business administration (mba)": "MBA",
+    "master’s in business administration (mba)": "MBA",
+    "mba, information technology": "MBA",
+    "mba, university of baltimore, 1992": "MBA",
+    "m.s.,computer science": "M.S., Computer Science",
+    "master of science, computer science, johns hopkins university, baltimore md (1997)": "M.S., Computer Science",
+    "master of science, electrical engineering": "M.S., Electrical Engineering",
+    "master of science, electrical engineering, johns hopkins university, baltimore md (1989)": "M.S., Electrical Engineering"
+    
+}    
+
+# Deterministic cleanup patterns
+_degree_year_rx = re.compile(r"\b(19\d{2}|20\d{2})\b")
+_degree_month_rx = re.compile(
+    r"\b(?:jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)\b",
+    re.I
+)
+_degree_inst_rx = re.compile(r"\b(university|college|school|institute|campus)\b", re.I)
+_degree_minor_rx = re.compile(r"\bminor\b", re.I)
+
+def _degree_generic_cleanup(line: str) -> str:
+    """
+    Deterministic cleanup (Rule 18.1):
+    - remove parentheticals containing year/month/minor
+    - remove trailing comma segments containing year/month/institution
+    - normalize prefixes: BA/BS/Bachelor->B.S., MS/Master->M.S.
+    - enforce comma format after B.S./M.S.
+    """
+    s = unicodedata.normalize("NFKC", (line or "")).translate(_DASHES).strip()
+    if not s:
+        return ""
+
+    # remove parentheses containing year/month/minor
+    def paren_repl(m):
+        inner = m.group(1)
+        if _degree_year_rx.search(inner) or _degree_month_rx.search(inner) or _degree_minor_rx.search(inner):
+            return ""
+        return "(" + inner + ")"
+    s = re.sub(r"\(([^)]*)\)", paren_repl, s)
+
+    # drop trailing comma segments that look like institution/date/location metadata
+    parts = [p.strip() for p in s.split(",")]
+    kept = []
+    for i, p in enumerate(parts):
+        if i == 0:
+            kept.append(p)
+            continue
+        if _degree_year_rx.search(p) or _degree_month_rx.search(p) or _degree_inst_rx.search(p):
+            break
+        kept.append(p)
+    s = ", ".join([k for k in kept if k]).strip(" ,")
+
+    # Normalize prefixes to prevent duplicates
+    s = re.sub(r"^BA\b", "B.S.", s, flags=re.I)
+    s = re.sub(r"^B\.A\b", "B.S.", s, flags=re.I)
+    s = re.sub(r"^BS\b", "B.S.", s, flags=re.I)
+    s = re.sub(r"^B\.S\b", "B.S.", s, flags=re.I)
+    s = re.sub(r"^Bachelor of (Science|Arts)\b", "B.S.", s, flags=re.I)
+    s = re.sub(r"^Bachelor of Engineering\b", "B.S.", s, flags=re.I)
+
+    s = re.sub(r"^MS\b", "M.S.", s, flags=re.I)
+    s = re.sub(r"^M\.S\b", "M.S.", s, flags=re.I)
+    s = re.sub(r"^Master of Science\b", "M.S.", s, flags=re.I)
+    s = re.sub(r"^Master in\b", "M.S.", s, flags=re.I)
+
+    # ✅ FIX: remove punctuation-only segments like "." that create "B.S., ., X"
+    segs = [seg.strip() for seg in s.split(",")]
+    segs = [seg for seg in segs if seg and seg not in {".", "..", "..."}]
+    # also remove segments that are only punctuation
+    cleaned_segs = []
+    for seg in segs:
+        only_punct = re.fullmatch(r"[.\-–—_]+", seg) is not None
+        if not only_punct:
+            cleaned_segs.append(seg)
+    s = ", ".join(cleaned_segs).strip()
+
+    # re-normalize comma spacing again
+    s = re.sub(r"\s*,\s*", ", ", s).strip(" ,")
+    return s
 
 # ============================================================
 # Generalized “Label:” stripping inside SKILLS section (locked feature)
@@ -297,6 +430,104 @@ def _skills_tokens_from_lines(skills_lines):
             continue
         tokens.extend([t.strip() for t in _SPLIT.split(cleaned) if t.strip()])
     return tokens
+
+
+# ============================================================
+# Certification parsing + cleaning (NEW FIX)
+# ============================================================
+
+_MONTHS_RX = r"(?:jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)"
+_re_year = re.compile(r"\b(19\d{2}|20\d{2})\b")
+_re_mmddyyyy = re.compile(r"\b\d{1,2}/\d{1,2}/\d{2,4}\b")
+_re_month_year = re.compile(rf"\b{_MONTHS_RX}\b\s*\d{{0,2}}\s*,?\s*(19\d{{2}}|20\d{{2}})", re.I)
+_re_paren = re.compile(r"\(([^)]*)\)")
+_re_long_id = re.compile(r"\b[A-Z0-9]{8,}\b")
+_re_code_like = re.compile(r"\b(?:COMP\d+|F\w{10,}|V\w{10,})\b", re.I)
+_re_metadata_words = re.compile(r"\b(certification issued|Cert|Analyst# 10080|License|October|present|udemy courses|self-study|certification issues|issued|exp\.?|expires|Cert# 11073|expiration|taking test|attended Reinvent conference|202|in process)\b", re.I)
+
+
+def _canon_text(s: str) -> str:
+    s = unicodedata.normalize("NFKC", (s or "")).translate(_DASHES)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+def _cert_lookup_key(s: str) -> str:
+    return _canon_text(s).casefold()
+
+
+def clean_cert_token(token: str) -> str:
+    """Clean a single certification token deterministically (no inference)."""
+    if token is None:
+        return ""
+    s = _canon_text(str(token))
+    if not s:
+        return ""
+
+    # drop leading bullets
+    s = re.sub(r"^[•\-\u2022\t\s]+", "", s).strip()
+
+    # remove parenthetical metadata if it contains date/year or issuance words
+    def paren_repl(m):
+        inner = m.group(1)
+        if _re_year.search(inner) or _re_mmddyyyy.search(inner) or _re_month_year.search(inner) or _re_metadata_words.search(inner):
+            return ""
+        return "(" + inner + ")"
+
+    s = _re_paren.sub(paren_repl, s)
+
+    # cut off at metadata word occurrence (e.g., 'certification issued')
+    m = _re_metadata_words.search(s)
+    if m:
+        s = s[:m.start()].strip(" -;:,.\t")
+
+    # remove date patterns
+    s = _re_month_year.sub("", s)
+    s = _re_mmddyyyy.sub("", s)
+    # remove years
+    s = _re_year.sub("", s)
+    # remove IDs / codes
+    s = _re_code_like.sub("", s)
+    s = _re_long_id.sub("", s)
+
+    # remove trailing keywords 'Certification' / 'Certificate'
+    s = re.sub(r"\b(Certification|Certificate|certification|certificate|cert|Cert)\b\.?$", "", s, flags=re.I).strip()
+
+    # normalize spaces and separators
+    s = re.sub(r"\s+", " ", s).strip(" ;,-")
+
+    # apply normalization mapping (explicit)
+    key = _cert_lookup_key(s)
+    if key in CERT_NORMALIZATION:
+        s = CERT_NORMALIZATION[key]
+
+    return s.strip()
+
+
+def clean_certifications_from_lines(cert_lines):
+    """
+    Extract + clean certifications from Certification section lines.
+    - Split only on commas/semicolons (Rule 15)
+    - Treat line boundaries as separate entries (docx line-aware)
+    - Remove dates/years/ids/issuance text
+    - Output deterministic list
+    """
+    cleaned = []
+    for line in cert_lines:
+        line = _canon_text(line)
+        if not line:
+            continue
+        # split only on commas/semicolons
+        parts = [p.strip() for p in _SPLIT.split(line) if p.strip()]
+        if not parts:
+            continue
+        for p in parts:
+            c = clean_cert_token(p)
+            if c:
+                cleaned.append(c)
+
+    # dedupe preserve order
+    return list(dict.fromkeys(cleaned))
+
 
 # ============================================================
 # Utilities
@@ -471,7 +702,9 @@ def parse_resume_sections(file_like, name_override=None):
 
     # Skills tokens are line-aware and label-stripped
     skills_raw = dedupe_preserve_order(_skills_tokens_from_lines(skills_lines))
-    certs_raw = dedupe_preserve_order(split_on_commas_semicolons(" ".join(cert_lines).strip()))
+    #certs_raw = dedupe_preserve_order(split_on_commas_semicolons(" ".join(cert_lines).strip()))
+    certs_raw = clean_certifications_from_lines(cert_lines)
+
 
     return {
         "name": name,
@@ -555,7 +788,7 @@ def categorize_skills_with_user(skills, category_map, resume_label=""):
 # ============================================================
 
 def extract_degree_lines(edu_lines):
-    rx = re.compile(r"\b(Ph\.?D|PhD|Doctor|M\.?S|MBA|Master|B\.?S|B\.?A|Bachelor|Associate)\b", re.I)
+    rx = re.compile(r"\b(Ph\.?D|PhD|Doctor|M\.?S|MBA|Master|B\.?S|B\.?A|BA|Bachelor|A\.?S|A\.?A|AS|Associate)\b", re.I)
     out = []
     for line in edu_lines:
         if rx.search(line):
@@ -563,14 +796,14 @@ def extract_degree_lines(edu_lines):
     return dedupe_preserve_order(out)
 
 def classify_degree(deg):
-    d = deg.lower()
+    d = (deg or "").lower()
     if "ph.d" in d or "phd" in d or "doctor" in d:
         return "Degree/Phds"
-    if "m.s" in d or "mba" in d or "master" in d:
+    if "m.s" in d or "ms" in d or "mba" in d or "master" in d:
         return "Degree/Masters"
     if "b.s" in d or "b.a" in d or "bachelor" in d:
         return "Degree/Bachelors"
-    if "associate" in d or "a.s" in d:
+    if "a.s" in d or "a.a" in d or "associate" in d:
         return "Degree/Associates"
     return "Degree/Bachelors"
 
@@ -583,8 +816,14 @@ def apply_degrees(edu_lines, edu_text):
     }
 
     for deg in extract_degree_lines(edu_lines):
-        key = deg.strip().lower()
-        norm = DEGREE_NORMALIZATION.get(key, deg.strip())
+        key = _degree_lookup_key(deg)
+        norm = DEGREE_NORMALIZATION.get(key)
+
+        if norm is None:
+            cleaned = _degree_generic_cleanup(deg)
+            key2 = _degree_lookup_key(cleaned)
+            norm = DEGREE_NORMALIZATION.get(key2, cleaned)
+
         col = classify_degree(norm)
         degrees_by_col[col].append(norm)
 

@@ -2,3 +2,11 @@ streamlit
 pandas
 openpyxl
 python-docx
+io
+re
+json
+unicodedata
+pathlib
+collections
+zipfile
+docx

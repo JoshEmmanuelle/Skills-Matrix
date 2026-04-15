@@ -250,9 +250,9 @@ if st.button("Run Processor", type="primary"):
     set_progress(100, "Complete")
 
     filename = (
-        "Skills_Matrix_UPDATED.xlsx"
+        "Skills_Matrix_UPDATED.xlsx" # add datetime
         if mode.startswith("Option 1")
-        else "Skills_Matrix_FROM_RESUMES_ONLY.xlsx"
+        else "Skills_Matrix_from_resumes_ONLY.xlsx" # add datetime
     )
 
     st.success("Processing complete.")
