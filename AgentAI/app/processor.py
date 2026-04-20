@@ -9,12 +9,13 @@ from zipfile import BadZipFile
 import pandas as pd
 from docx import Document
 import streamlit as st
+from datetime import datetime
 
 # ============================================================
 # Constants (Rulebook)
 # ============================================================
 
-FIXED_EXPERIENCE_YEAR = 2026
+CURRENT_YEAR = datetime.now().year
 BY_CATEGORY_SHEET = "By Category"
 
 REQUIRED_COLUMNS = [
@@ -59,22 +60,31 @@ SKILLS_HEADERS = {
     "technical skills",
     "skills/tools",
     "skills/tools/technologies",
-    "skills & tools"
+    "skills & tools",
+    "skills &amp; tools",
 }
+
 
 EDU_HEADERS = {"education", "educations"}
 CERT_HEADERS = {"certification", "certifications"}
 
-NON_EXTRACTABLE_HEADERS = {
-    "ASSOCIATION/HONORS:",
-    "association/honors:",
-    "summary",
-    "clearance",
+EXPERIENCE_HEADERS = {
     "professional experience",
     "experience",
     "work experience",
     "employment history",
     "work history",
+    "experience (ts/sci full-scope cleared)"
+}
+
+NON_EXTRACTABLE_HEADERS = {
+    "association/honors",
+    "associations/honors",
+    "associations",
+    "honors",
+    "summary",
+    "clearance",
+    "clearances",
     "projects",
     "project experience",
     "publications",
@@ -82,9 +92,17 @@ NON_EXTRACTABLE_HEADERS = {
     "organizations",
     "activities",
     "references",
-    "Associations/Honors:",
-    "Associations:",
-    "Honors:"
+    "training",
+    "trainings",
+    "training:",
+    "trainings:"
+    "courses",
+    "course",
+    "membership",
+    "membership"
+    "memberships",
+    "TRAININIG:",
+    "traininig"
 }
 
 _SPLIT = re.compile(r"[;,]")
@@ -119,7 +137,8 @@ COMPOUND_SPLITS = {
     "slick/scalaquery": ["SLICK", "ScalaQuery"],
     "xml/sqd" : ["XML","SQD"],
     "xml/xsd": ["XML", "XSD"],
-    "analog/digital oscilloscope":["Analog Oscilloscope","Digital Oscilloscope"]
+    "analog/digital oscilloscope":["Analog Oscilloscope","Digital Oscilloscope"],
+    "ElasticSearch CVS": ["ElasticSearch", "CVS"]
 }
 
 # ============================================================
@@ -228,6 +247,7 @@ SKILL_NORMALIZATION = {
     "and kiribiti.": "Kiribati",
     "agile methodology": "Agile",
     "apache http server": "Apache HTTP",
+    "HTTP.": "HTTP",
     "consul and vault.":"Consultaiton and Vault",
     "java spring cloud": "Java Spring",
     "junit4/5": "Junit",
@@ -244,7 +264,9 @@ SKILL_NORMALIZATION = {
     "x86dgb":"x86",
     "signal generator": "Signal Generator",
     "digital logic analyzer": "Digital Logic Analyzer",
-    "Sharepoint":"SharePoint"
+    "Sharepoint":"SharePoint",
+    "JAVA": "Java",
+    "MY SQL": "MySQL"
 }
 
  
@@ -310,6 +332,7 @@ DEGREE_NORMALIZATION = {
     "b.s. computer information systems, may 2011": "B.S., Computer Information Systems",
     "b.s. computer science": "B.S., Computer Science",
     "b.s. electrical engineering (1996)": "B.S., Electrical Engineering",
+    "b.s. electrical engineering  (1996)": "B.S., Electrical Engineering",
     "b.s., science, electrical engineering": "B.S., Science, Electrical Engineering",
     "bachelors of science, electrical engineering": "B.S., Electrical Engineering",
     "b.s. in computer networks & cybersecurity": "B.S., Computer Networks and Cybersecurity",
@@ -404,6 +427,17 @@ def _degree_generic_cleanup(line: str) -> str:
     s = ", ".join([k for k in kept if k]).strip(" ,")
 
     # Normalize prefixes to prevent duplicates
+    s = re.sub(r"^AA\b", "A.S.", s, flags=re.I)
+    s = re.sub(r"^A\.A\b", "A.S.", s, flags=re.I)
+    s = re.sub(r"^AS\b", "A.S.", s, flags=re.I)
+    s = re.sub(r"^A\.S\b", "A.S.", s, flags=re.I)
+    s = re.sub(r"^Associate of\b", "A.S.", s, flags=re.I)
+    s = re.sub(r"^Associates of\b", "B.S.", s, flags=re.I)
+    s = re.sub(r"^Associate of,\b", "A.S.", s, flags=re.I)
+    s = re.sub(r"^Associates in\b", "A.S.", s, flags=re.I)
+    s = re.sub(r"^Associate in,\b", "A.S.", s, flags=re.I)
+    s = re.sub(r"^Associates in,\b", "A.S.", s, flags=re.I)    
+    
     s = re.sub(r"^BA\b", "B.S.", s, flags=re.I)
     s = re.sub(r"^B\.A\b", "B.S.", s, flags=re.I)
     s = re.sub(r"^BS\b", "B.S.", s, flags=re.I)
@@ -415,7 +449,8 @@ def _degree_generic_cleanup(line: str) -> str:
     s = re.sub(r"^Bachelors in\b", "B.S.", s, flags=re.I)
     s = re.sub(r"^Bachelors in,\b", "B.S.", s, flags=re.I)
     s = re.sub(r"^Bachelor in,\b", "B.S.", s, flags=re.I)
-    s = re.sub(r"^Bachelor of (Science|Arts)\b", "B.S.", s, flags=re.I)
+    s = re.sub(r"^Bachelor of (Science|Arts)\b", "B.S.", s, flags=re.I)  
+    s = re.sub(r"^Bachelors of Science\b", "B.S.", s, flags=re.I)
     s = re.sub(r"^Bachelor of Engineering\b", "B.S.", s, flags=re.I)
 
     s = re.sub(r"^MS\b", "M.S.", s, flags=re.I)
@@ -424,8 +459,8 @@ def _degree_generic_cleanup(line: str) -> str:
     s = re.sub(r"^M.S., in\b", "M.S.", s, flags=re.I)
     s = re.sub(r"^Master of Science\b", "M.S.", s, flags=re.I)
     s = re.sub(r"^Master of Sciences,\b", "M.S.", s, flags=re.I)
-    s = re.sub(r"^Masters of Science,\b", "M.S.", s, flags=re.I)
     s = re.sub(r"^Masters of Science\b", "M.S.", s, flags=re.I)
+    s = re.sub(r"^Masters of Science,\b", "M.S.", s, flags=re.I)
     s = re.sub(r"^Masters of Sciences,\b", "M.S.", s, flags=re.I)
     s = re.sub(r"^Master in\b", "M.S.", s, flags=re.I)
     s = re.sub(r"^Masters in\b", "M.S.", s, flags=re.I)
@@ -511,6 +546,10 @@ def clean_cert_token(token: str) -> str:
     if not s:
         return ""
     s = re.sub(r"^[•\-\u2022\t\s]+", "", s).strip()
+    # Drop year-only junk
+    if re.fullmatch(r"(19\d{2}|20\d{2})", s.strip()):
+        return ""
+
 
     def paren_repl(m):
         inner = m.group(1)
@@ -579,7 +618,10 @@ def dedupe_preserve_order(items):
     return out
 
 def _clean_header(s):
-    return (s or "").strip().rstrip(":").lower()
+    # normalize header text for matching
+    t = (s or "").strip()
+    t = t.lstrip("•-*–—\t ").rstrip(":").strip()
+    return t.lower()
 
 def _is_all_caps_header(line):
     t = (line or "").strip()
@@ -590,15 +632,34 @@ def _is_all_caps_header(line):
         return False
     return (t.upper() == t) and any(ch.isalpha() for ch in t)
 
+_SECTION_PREFIX_BOUNDARIES = (
+    "training",
+    "training:"
+    "memberships",
+    "membership",
+    "skills/technologies",
+    "skills/technology",
+    "skills & technologies",
+    "skills/tech",
+    "training/courses",
+    "courses",
+)
+
 def _is_section_boundary(line):
     h = _clean_header(line)
-    return (
+
+    if (
         h in SKILLS_HEADERS
         or h in EDU_HEADERS
         or h in CERT_HEADERS
+        or h in EXPERIENCE_HEADERS
         or h in NON_EXTRACTABLE_HEADERS
-        or _is_all_caps_header(line)
-    )
+        or h in _SECTION_PREFIX_BOUNDARIES
+    ):
+        return True
+    
+    return False
+
 
 # ============================================================
 # Skill pipeline (Rule 9–11)
@@ -702,7 +763,7 @@ def peek_name_from_docx(file_like):
             return line.strip()
     return ""
 
-def _section_lines(lines, header_set):
+def _section_lines(lines, header_set, section_name=None):
     start = None
     for i, line in enumerate(lines):
         if _clean_header(line) in header_set:
@@ -710,11 +771,15 @@ def _section_lines(lines, header_set):
             break
     if start is None:
         return []
+
     out = []
     for line in lines[start:]:
+        # stop only on REAL section boundaries
         if _is_section_boundary(line):
             break
+
         out.append(line)
+
     return out
 
 def parse_resume_sections(file_like, name_override=None):
@@ -726,9 +791,15 @@ def parse_resume_sections(file_like, name_override=None):
     skills_lines = _section_lines(lines, SKILLS_HEADERS)
     edu_lines = _section_lines(lines, EDU_HEADERS)
     cert_lines = _section_lines(lines, CERT_HEADERS)
+    exp_lines = _section_lines(lines, EXPERIENCE_HEADERS)
 
     skills_raw = dedupe_preserve_order(_skills_tokens_from_lines(skills_lines))
+
+    # Rule 15: certifications extracted only from Certifications section, split on commas/semicolons, literal.
+    # cert_text = " ".join(cert_lines).strip()
+    # certs_raw = dedupe_preserve_order([c.strip() for c in _SPLIT.split(cert_text) if c.strip()])  
     certs_raw = clean_certifications_from_lines(cert_lines)
+
 
     return {
         "name": name,
@@ -736,7 +807,120 @@ def parse_resume_sections(file_like, name_override=None):
         "certs_raw": certs_raw,
         "education_lines": edu_lines,
         "education_text": " ".join(edu_lines).strip(),
+        "experience_lines": exp_lines,
+        "experience_text": " ".join(exp_lines).strip(),
     }
+
+
+# Experience -> Oldest Job Year (Rule 8)
+
+_MONTHS_NAME_RX = r"(?:jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)"
+
+def extract_oldest_experience_year(experience_lines):
+    """
+    Rule 8:
+    Years of Experience = 2026 − year of oldest job experience.
+
+    Supported explicit formats (start year only):
+      - July 2019 – March 2022
+      - Jul 2019 – Mar 2022
+      - July, 2019 – March, 2022
+      - July/2019 – March/2022
+      - 5/1984-10/2021
+      - MM/YYYY
+      - YYYY
+
+    No inference. Deterministic.
+    """
+
+    if not experience_lines:
+        return None
+
+    years = []
+
+    for raw in experience_lines:
+        s = html.unescape(raw or "")
+        s = unicodedata.normalize("NFKC", s).translate(_DASHES)
+
+        # ------------------------------------------------------------
+        # Month YYYY – Month YYYY
+        # July 2019 – March 2022
+        # July, 2019 – March, 2022
+        # ------------------------------------------------------------
+        for y in re.findall(
+            rf"\b{_MONTHS_NAME_RX}\b\s*,?\s+(19\d{{2}}|20\d{{2}})\s*[-–]\s*\b{_MONTHS_NAME_RX}\b\s*,?\s+\d{{4}}\b",
+            s,
+            flags=re.I
+        ):
+            years.append(int(y))
+
+        # ------------------------------------------------------------
+        # Abbreviated Month YYYY – Abbreviated Month YYYY
+        # Jul 2019 – Mar 2022
+        # ------------------------------------------------------------
+        for y in re.findall(
+            r"\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\b\s*,?\s+(19\d{2}|20\d{2})\s*[-–]\s*(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\b\s*,?\s+\d{4}\b",
+            s,
+            flags=re.I
+        ):
+            years.append(int(y))
+
+        # ------------------------------------------------------------
+        # Month/YYYY – Month/YYYY
+        # July/2019 – March/2022
+        # ------------------------------------------------------------
+        for y in re.findall(
+            rf"\b{_MONTHS_NAME_RX}/(19\d{{2}}|20\d{{2}})\s*[-–]\s*\b{_MONTHS_NAME_RX}/\d{{4}}\b",
+            s,
+            flags=re.I
+        ):
+            years.append(int(y))
+
+        # ------------------------------------------------------------
+        # MM/YYYY-MM/YYYY
+        # 5/1984-10/2021
+        # ------------------------------------------------------------
+        for y in re.findall(
+            r"\b(?:0?[1-9]|1[0-2])/(19\d{2}|20\d{2})\s*-\s*(?:0?[1-9]|1[0-2])/\d{4}\b",
+            s
+        ):
+            years.append(int(y))
+
+        # ------------------------------------------------------------
+        # Standalone MM/YYYY
+        # 01/2014
+        # ------------------------------------------------------------
+        for y in re.findall(
+            r"\b(?:0?[1-9]|1[0-2])/(19\d{2}|20\d{2})\b",
+            s
+        ):
+            years.append(int(y))
+
+        # ------------------------------------------------------------
+        # Standalone Month YYYY
+        # July 2019
+        # ------------------------------------------------------------
+        for y in re.findall(
+            rf"\b{_MONTHS_NAME_RX}\b\s+(19\d{{2}}|20\d{{2}})\b",
+            s,
+            flags=re.I
+        ):
+            years.append(int(y))
+
+        # ------------------------------------------------------------
+        # Standalone YYYY
+        # 2014
+        # ------------------------------------------------------------
+        for y in re.findall(
+            r"\b(19\d{2}|20\d{2})\b",
+            s
+        ):
+            years.append(int(y))
+
+    if not years:
+        return None
+
+    return min(years)
 
 # ============================================================
 # Mapping from existing By Category
@@ -850,31 +1034,34 @@ def apply_degrees(edu_lines, edu_text):
     }
 
     for deg in extract_degree_lines(edu_lines):
+        # Step 1: canonical lookup key
         key = _degree_lookup_key(deg)
+
+        # Step 2: explicit normalization mapping (if exists)
         norm = DEGREE_NORMALIZATION.get(key)
 
+        # Step 3: deterministic cleanup if not explicitly mapped
         if norm is None:
-            cleaned = _degree_generic_cleanup(deg)
-            key2 = _degree_lookup_key(cleaned)
-            norm = DEGREE_NORMALIZATION.get(key2, cleaned)
+            norm = _degree_generic_cleanup(deg)
 
+        # Step 4: classify cleaned degree
         col = classify_degree(norm)
         degrees_by_col[col].append(norm)
 
-    years = [int(y) for y in re.findall(r"\b(19\d{2}|20\d{2})\b", edu_text or "")]
-    earliest = min(years) if years else None
-    return degrees_by_col, earliest
+    return degrees_by_col
 
-def compute_years_experience(earliest_degree_year):
-    if earliest_degree_year is None:
+# Compute Years of Experience
+
+def compute_years_experience(oldest_job_year):
+    if oldest_job_year is None:
         return None
-    return FIXED_EXPERIENCE_YEAR - earliest_degree_year
+    return CURRENT_YEAR - oldest_job_year
 
 # ============================================================
 # Upsert row (Rule 5)
 # ============================================================
 
-def upsert_candidate_row(by_cat, name, skills_by_category, certs_raw, degrees_by_col, earliest_degree_year, action):
+def upsert_candidate_row(by_cat, name, skills_by_category, certs_raw, degrees_by_col, oldest_job_year, action):
     by_cat = ensure_by_category_columns(by_cat)
     name_norm = (name or "").strip()
     exists_mask = by_cat["Name"].astype(str).str.lower() == name_norm.lower()
@@ -884,7 +1071,7 @@ def upsert_candidate_row(by_cat, name, skills_by_category, certs_raw, degrees_by
 
     row = {c: "" for c in REQUIRED_COLUMNS}
     row["Name"] = name_norm
-    row["Years of Experience"] = compute_years_experience(earliest_degree_year)
+    row["Years of Experience"] = compute_years_experience(oldest_job_year)
 
     for col in SKILL_CATEGORY_COLS:
         row[col] = ", ".join(skills_by_category.get(col, []))

@@ -57,6 +57,7 @@
   "HTML": "Language",
   "J2EE": "Language",
   "Java": "Language",
+  "JAVA": "Language",
   "JavaFX": "Language",
   "jQuery": "Language",
   "PL/1": "Language",
@@ -74,6 +75,7 @@
   "Cray": "Databases",
   "MongoDB": "Databases",
   "MySQL": "Databases",
+  "MY SQL": "Databases",
   "Oracle": "Databases",
   "PostgreSQL": "Databases",
   "SQL Server": "Databases",
@@ -222,6 +224,7 @@
   "File Transfer Protocol": "Networking",
   "HTTP": "Networking",
   "HTTPS": "Networking",
+  "HTTP.": "Networking",
   "Registry Registrar Protocol": "Networking",
   "SSL": "Networking",
   "TCP/IP": "Networking",
@@ -994,5 +997,6 @@
   "Ubiquity": "Tools",
   "Juniper SRX series": "Networking",
   "VMware vCenter": "Tools",
-  "Windows Server": "OS"
+  "Windows Server": "OS",
+  "Intermediate": "Other"
 }

@@ -15,6 +15,7 @@ from app.processor import (
     resolve_conflicts_with_user,
     categorize_skills_with_user,
     apply_degrees,
+    extract_oldest_experience_year,
     upsert_candidate_row,
     rebuild_skill_frequency,
     rebuild_cert_frequency,
@@ -33,8 +34,7 @@ st.markdown(
     """
 ### Processing Mode
 - **Option 1**: Update an existing Skills Matrix Excel (merge)
-- **Option 2**: Generate a NEW Skills Matrix Excel from resumes only  
-  (same parsing rules, same normalization, same frequency rebuilds)
+- **Option 2**: Generate a NEW Skills Matrix Excel using resumes only
 """
 )
 
@@ -42,7 +42,7 @@ mode = st.radio(
     "Choose processing mode:",
     options=[
         "Option 1 – Update existing Skills Matrix Excel (merge)",
-        "Option 2 – Generate NEW Skills Matrix Excel from resumes only",
+        "Option 2 – Generate NEW Skills Matrix Excel using resumes only",
     ],
 )
 
@@ -68,7 +68,6 @@ resume_files = st.sidebar.file_uploader(
 st.sidebar.header("Mappings")
 category_map_path = Path("data/skill_category_map.json")
 
-# Progress bar
 progress = st.progress(0, text="Ready")
 
 def set_progress(pct: int, msg: str):
@@ -101,14 +100,7 @@ else:
     st.caption("Base dataset initialized as empty (resumes-only mode).")
 
 # ============================================================
-# Step B — MERGE-SAFE CATEGORY MAP LOAD (STRONG RECOMMENDATION)
-# ============================================================
-# Goal: manual JSON edits must persist across runs.
-# Strategy:
-# 1) Load JSON map first (baseline, includes manual edits)
-# 2) If Option 1: build map from Excel, merge only missing skills into JSON baseline
-# 3) If conflicts: require user resolution (Rule 13)
-# 4) Save merged map (your save_category_map is merge-safe now)
+# Step B — Merge-safe category map load
 # ============================================================
 
 set_progress(15, "Loading & merging skill mappings (merge-safe)")
@@ -118,20 +110,17 @@ category_map = load_category_map(category_map_path)
 if mode.startswith("Option 1") and not by_cat.empty:
     excel_map, conflicts_from_excel = build_category_map_from_by_category(by_cat)
 
-    # Merge: keep JSON authoritative for existing keys (preserves manual JSON edits)
+    # JSON is authoritative for existing keys
     for skill, cat in excel_map.items():
         if skill not in category_map:
             category_map[skill] = cat
 
-    # Detect direct conflicts between JSON and Excel mappings
     excel_conflicts = {
         s: {category_map[s], excel_map[s]}
         for s in excel_map
         if s in category_map and category_map[s] != excel_map[s]
     }
 
-    # Also include conflicts detected internally from Excel itself (if any)
-    # These must be resolved deterministically via UI.
     combined_conflicts = {}
     combined_conflicts.update(conflicts_from_excel or {})
     combined_conflicts.update(excel_conflicts or {})
@@ -140,16 +129,13 @@ if mode.startswith("Option 1") and not by_cat.empty:
         st.warning("Conflicting skill categories detected. Resolve to continue.")
         category_map = resolve_conflicts_with_user(combined_conflicts, category_map)
 
-# Persist merged mapping (merge-safe save prevents losing manual edits)
 save_category_map(category_map_path, category_map)
-
-# Store in session for use during processing
 st.session_state.category_map = category_map
 
 st.success(f"Loaded {len(st.session_state.category_map)} skill mappings (merge-safe).")
 
 # ============================================================
-# Step C — Duplicate Name Check (Mandatory First Step)
+# Step C — Duplicate Name Check (MANDATORY)
 # ============================================================
 
 set_progress(25, "Duplicate name check")
@@ -163,7 +149,7 @@ for rf in resume_files:
 existing_names = set(by_cat["Name"].astype(str).str.lower()) if not by_cat.empty else set()
 batch_counts = Counter([nm.lower() for _, nm in names_peeked if nm])
 
-dup_table = []
+dup_rows = []
 actions = {}
 
 for fn, nm in names_peeked:
@@ -172,21 +158,23 @@ for fn, nm in names_peeked:
     in_batch_dup = batch_counts.get(nm_norm.lower(), 0) > 1 if nm_norm else False
     is_dup = in_existing or in_batch_dup
 
-    dup_table.append({
+    dup_rows.append({
         "Resume File": fn,
         "Parsed Name": nm_norm,
         "Duplicate?": "YES" if is_dup else "NO",
-        "Reason": ("Exists in Excel" if in_existing else "") + ("; " if in_existing and in_batch_dup else "") + ("Duplicate in batch" if in_batch_dup else ""),
+        "Reason": ("Exists in Excel" if in_existing else "") +
+                  ("; " if in_existing and in_batch_dup else "") +
+                  ("Duplicate in batch" if in_batch_dup else ""),
     })
 
 st.subheader("Duplicate Name Check (Mandatory)")
-st.dataframe(pd.DataFrame(dup_table), use_container_width=True)
+st.dataframe(pd.DataFrame(dup_rows), use_container_width=True)
 
-any_dup = any(row["Duplicate?"] == "YES" for row in dup_table)
+any_dup = any(row["Duplicate?"] == "YES" for row in dup_rows)
 
 if any_dup:
     st.warning("Duplicates detected. Choose an action for each duplicate before continuing.")
-    for row in dup_table:
+    for row in dup_rows:
         fn = row["Resume File"]
         nm = row["Parsed Name"]
         if row["Duplicate?"] == "NO":
@@ -225,18 +213,23 @@ if st.button("Run Processor", type="primary"):
         rf.seek(0)
         parsed = parse_resume_sections(rf)
 
-        # Rule 9–11 enforced in processor
+        # Skills
         skills = process_skills(parsed["skills_raw"])
-
         categorized, st.session_state.category_map = categorize_skills_with_user(
             skills,
             st.session_state.category_map,
             resume_label=rf.name,
         )
 
-        degrees_by_col, earliest_degree_year = apply_degrees(
+        # Degrees (unchanged)
+        degrees_by_col = apply_degrees(
             parsed["education_lines"],
             parsed["education_text"],
+        )
+
+        # ✅ Years of Experience — NEW RULE
+        oldest_job_year = extract_oldest_experience_year(
+            parsed.get("experience_lines", [])
         )
 
         updated_by_cat = upsert_candidate_row(
@@ -245,11 +238,10 @@ if st.button("Run Processor", type="primary"):
             skills_by_category=categorized,
             certs_raw=parsed["certs_raw"],
             degrees_by_col=degrees_by_col,
-            earliest_degree_year=earliest_degree_year,
+            oldest_job_year=oldest_job_year,
             action=action,
         )
 
-    # Persist mapping after successful run (merge-safe save)
     save_category_map(category_map_path, st.session_state.category_map)
 
     set_progress(90, "Rebuilding frequency sheets")
