@@ -1,4 +1,9 @@
+# Add in the terminal the following:
+# pip install -r requirements.txt
+
 streamlit
 pandas
 openpyxl
 python-docx
+lxml
+typing-extensions
