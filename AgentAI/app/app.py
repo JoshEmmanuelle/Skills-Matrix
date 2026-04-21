@@ -3,7 +3,7 @@ from pathlib import Path
 import pandas as pd
 from collections import Counter
 
-from app.processor import (
+from processor import (
     load_excel_by_category,
     create_empty_by_category_df,
     peek_name_from_docx,
