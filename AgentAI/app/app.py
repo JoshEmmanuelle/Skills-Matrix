@@ -66,7 +66,8 @@ resume_files = st.sidebar.file_uploader(
 )
 
 st.sidebar.header("Mappings")
-category_map_path = Path("data/skill_category_map.json")
+# category_map_path = Path("data/skill_category_map.json")
+category_map_path = Path(__file__).resolve().parent / "data" / "skill_category_map.json"
 
 progress = st.progress(0, text="Ready")
 
