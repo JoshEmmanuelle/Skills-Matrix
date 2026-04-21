@@ -61,7 +61,7 @@ SKILLS_HEADERS = {
     "skills/tools",
     "skills/tools/technologies",
     "skills & tools",
-    "skills &amp; tools",
+    "skills &amp; tools"
 }
 
 
@@ -78,6 +78,7 @@ EXPERIENCE_HEADERS = {
 }
 
 NON_EXTRACTABLE_HEADERS = {
+    
     "association/honors",
     "associations/honors",
     "associations",
@@ -94,15 +95,19 @@ NON_EXTRACTABLE_HEADERS = {
     "references",
     "training",
     "trainings",
-    "training:",
-    "trainings:"
     "courses",
     "course",
     "membership",
-    "membership"
     "memberships",
-    "TRAININIG:",
-    "traininig"
+    "traininig", 
+    "technologies",
+    "technology",
+    "tech",
+    "skills/technologies",
+    "skills/technology",
+    "skills/tech",
+    "training/courses",
+    
 }
 
 _SPLIT = re.compile(r"[;,]")
@@ -146,6 +151,7 @@ COMPOUND_SPLITS = {
 # ============================================================
 
 SKILL_NORMALIZATION = {
+    
     "amazon aws": "AWS",
     "some aws": "AWS",
     "a ws": "AWS",
@@ -266,7 +272,9 @@ SKILL_NORMALIZATION = {
     "digital logic analyzer": "Digital Logic Analyzer",
     "Sharepoint":"SharePoint",
     "JAVA": "Java",
-    "MY SQL": "MySQL"
+    "MY SQL": "MySQL",
+    "REST APIs": "REST API"
+    
 }
 
  
@@ -632,18 +640,6 @@ def _is_all_caps_header(line):
         return False
     return (t.upper() == t) and any(ch.isalpha() for ch in t)
 
-_SECTION_PREFIX_BOUNDARIES = (
-    "training",
-    "training:"
-    "memberships",
-    "membership",
-    "skills/technologies",
-    "skills/technology",
-    "skills & technologies",
-    "skills/tech",
-    "training/courses",
-    "courses",
-)
 
 def _is_section_boundary(line):
     h = _clean_header(line)
@@ -654,7 +650,6 @@ def _is_section_boundary(line):
         or h in CERT_HEADERS
         or h in EXPERIENCE_HEADERS
         or h in NON_EXTRACTABLE_HEADERS
-        or h in _SECTION_PREFIX_BOUNDARIES
     ):
         return True
     
