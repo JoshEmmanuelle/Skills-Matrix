@@ -1,7 +1,10 @@
-import streamlit as st
+import io
+import os
 from pathlib import Path
-import pandas as pd
 from collections import Counter
+
+import pandas as pd
+import streamlit as st
 
 from processor import (
     load_excel_by_category,
@@ -22,6 +25,43 @@ from processor import (
     rebuild_degree_frequency,
     write_excel_output,
 )
+
+# Optional LLM support (GitHub Models via OpenAI-compatible client)
+# Requires: openai in requirements.txt and GITHUB_TOKEN in Streamlit Secrets (or env var locally).
+try:
+    from openai import OpenAI
+except Exception:
+    OpenAI = None
+
+# ============================================================
+# Helpers: safe secrets + token retrieval
+# ============================================================
+
+def safe_secret(key: str, default=None):
+    """Return a Streamlit secret if available; otherwise default. Does not crash if no secrets.toml."""
+    try:
+        # st.secrets behaves like a mapping; reading it can raise if no secrets file exists locally
+        return st.secrets.get(key, default)
+    except Exception:
+        return default
+
+
+def get_github_token():
+    """Safest approach: env var locally, Streamlit Cloud secrets in deployment."""
+    token = os.environ.get("GITHUB_TOKEN")
+    if token:
+        return token
+    return safe_secret("GITHUB_TOKEN", None)
+
+
+def llm_status():
+    """Return (enabled: bool, reason: str)."""
+    if OpenAI is None:
+        return False, "openai package not installed"
+    token = get_github_token()
+    if not token:
+        return False, "GITHUB_TOKEN not set"
+    return True, "enabled"
 
 # ============================================================
 # App setup
@@ -65,9 +105,17 @@ resume_files = st.sidebar.file_uploader(
     accept_multiple_files=True,
 )
 
+# LLM badge (Enabled/Disabled)
+_enabled, _reason = llm_status()
+if _enabled:
+    st.sidebar.success("LLM: Enabled")
+else:
+    st.sidebar.warning(f"LLM: Disabled ({_reason})")
+
 st.sidebar.header("Mappings")
-# category_map_path = Path("data/skill_category_map.json")
-category_map_path = Path(__file__).resolve().parent / "data" / "skill_category_map.json"
+
+# IMPORTANT: anchor data path to this file's folder (works locally + Streamlit Cloud)
+CATEGORY_MAP_PATH = Path(__file__).resolve().parent / "data" / "skill_category_map.json"
 
 progress = st.progress(0, text="Ready")
 
@@ -106,12 +154,12 @@ else:
 
 set_progress(15, "Loading & merging skill mappings (merge-safe)")
 
-category_map = load_category_map(category_map_path)
+category_map = load_category_map(CATEGORY_MAP_PATH)
 
 if mode.startswith("Option 1") and not by_cat.empty:
     excel_map, conflicts_from_excel = build_category_map_from_by_category(by_cat)
 
-    # JSON is authoritative for existing keys
+    # JSON is authoritative for existing keys; Excel fills missing only
     for skill, cat in excel_map.items():
         if skill not in category_map:
             category_map[skill] = cat
@@ -130,7 +178,8 @@ if mode.startswith("Option 1") and not by_cat.empty:
         st.warning("Conflicting skill categories detected. Resolve to continue.")
         category_map = resolve_conflicts_with_user(combined_conflicts, category_map)
 
-save_category_map(category_map_path, category_map)
+# Persist merged mapping
+save_category_map(CATEGORY_MAP_PATH, category_map)
 st.session_state.category_map = category_map
 
 st.success(f"Loaded {len(st.session_state.category_map)} skill mappings (merge-safe).")
@@ -150,7 +199,7 @@ for rf in resume_files:
 existing_names = set(by_cat["Name"].astype(str).str.lower()) if not by_cat.empty else set()
 batch_counts = Counter([nm.lower() for _, nm in names_peeked if nm])
 
-dup_rows = []
+rows = []
 actions = {}
 
 for fn, nm in names_peeked:
@@ -159,7 +208,7 @@ for fn, nm in names_peeked:
     in_batch_dup = batch_counts.get(nm_norm.lower(), 0) > 1 if nm_norm else False
     is_dup = in_existing or in_batch_dup
 
-    dup_rows.append({
+    rows.append({
         "Resume File": fn,
         "Parsed Name": nm_norm,
         "Duplicate?": "YES" if is_dup else "NO",
@@ -169,19 +218,18 @@ for fn, nm in names_peeked:
     })
 
 st.subheader("Duplicate Name Check (Mandatory)")
-st.dataframe(pd.DataFrame(dup_rows), use_container_width=True)
+st.dataframe(pd.DataFrame(rows), use_container_width=True)
 
-any_dup = any(row["Duplicate?"] == "YES" for row in dup_rows)
+any_dup = any(r["Duplicate?"] == "YES" for r in rows)
 
 if any_dup:
     st.warning("Duplicates detected. Choose an action for each duplicate before continuing.")
-    for row in dup_rows:
-        fn = row["Resume File"]
-        nm = row["Parsed Name"]
-        if row["Duplicate?"] == "NO":
+    for r in rows:
+        fn = r["Resume File"]
+        nm = r["Parsed Name"]
+        if r["Duplicate?"] == "NO":
             actions[fn] = "new"
             continue
-
         choice = st.radio(
             f"Action for duplicate candidate '{nm}' (file: {fn})",
             options=["replacement (existing person)", "new person (same name)"],
@@ -222,16 +270,14 @@ if st.button("Run Processor", type="primary"):
             resume_label=rf.name,
         )
 
-        # Degrees (unchanged)
+        # Degrees
         degrees_by_col = apply_degrees(
             parsed["education_lines"],
             parsed["education_text"],
         )
 
-        # ✅ Years of Experience — NEW RULE
-        oldest_job_year = extract_oldest_experience_year(
-            parsed.get("experience_lines", [])
-        )
+        # Years of Experience
+        oldest_job_year = extract_oldest_experience_year(parsed.get("experience_lines", []))
 
         updated_by_cat = upsert_candidate_row(
             updated_by_cat,
@@ -243,7 +289,8 @@ if st.button("Run Processor", type="primary"):
             action=action,
         )
 
-    save_category_map(category_map_path, st.session_state.category_map)
+    # Persist mapping
+    save_category_map(CATEGORY_MAP_PATH, st.session_state.category_map)
 
     set_progress(90, "Rebuilding frequency sheets")
 
@@ -266,6 +313,10 @@ if st.button("Run Processor", type="primary"):
         deg_phd,
     )
 
+    # Store workbook in memory for Q&A (no download required)
+    st.session_state["excel_bytes"] = out_bytes
+    st.session_state.pop("excel_context", None)  # refresh cached context
+
     set_progress(100, "Complete")
 
     filename = (
@@ -281,3 +332,125 @@ if st.button("Run Processor", type="primary"):
         file_name=filename,
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
+# ============================================================
+# Q&A about output workbook (GitHub Models)
+# ============================================================
+
+def _get_github_models_client():
+    """OpenAI-compatible client configured for GitHub Models."""
+    if OpenAI is None:
+        return None, "The 'openai' package is not installed. Add 'openai' to requirements.txt."
+
+    token = get_github_token()
+    if not token:
+        return None, "Missing GITHUB_TOKEN. Add it to Streamlit Cloud Secrets or set env var locally."
+
+    endpoint = safe_secret("GITHUB_MODELS_ENDPOINT", "https://models.github.ai/inference")
+    return OpenAI(base_url=endpoint, api_key=token), None
+
+
+def _build_excel_context(excel_bytes: bytes) -> str:
+    """Build a compact, deterministic summary of the generated workbook."""
+    xf = pd.ExcelFile(io.BytesIO(excel_bytes), engine="openpyxl")
+    sheets = xf.sheet_names
+
+    ctx = []
+    ctx.append(f"Sheets: {', '.join(sheets)}")
+
+    # By Category
+    if "By Category" in sheets:
+        by_cat_df = xf.parse("By Category")
+        ctx.append(f"Total candidates (By Category): {len(by_cat_df)}")
+        ctx.append(f"Columns (By Category): {', '.join(list(by_cat_df.columns))}")
+
+    # SkillFrequency
+    if "SkillFrequency" in sheets:
+        sf = xf.parse("SkillFrequency")
+        if not sf.empty and "Candidate Count" in sf.columns:
+            top = sf.sort_values("Candidate Count", ascending=False).head(20)
+            ctx.append("Top Skills (top 20):")
+            for _, r in top.iterrows():
+                ctx.append(f"- {r['Skill']}: {int(r['Candidate Count'])}")
+
+    # CertificationFrequency
+    if "CertificationFrequency" in sheets:
+        cf = xf.parse("CertificationFrequency")
+        if not cf.empty and "Candidate Count" in cf.columns:
+            top = cf.sort_values("Candidate Count", ascending=False).head(20)
+            ctx.append("Top Certifications (top 20):")
+            for _, r in top.iterrows():
+                ctx.append(f"- {r['Certification']}: {int(r['Candidate Count'])}")
+
+    # Degree frequencies
+    deg_sheets = [
+        "DegreeFrequency_Associates",
+        "DegreeFrequency_Bachelors",
+        "DegreeFrequency_Masters",
+        "DegreeFrequency_Phds",
+    ]
+    for sh in deg_sheets:
+        if sh in sheets:
+            df = xf.parse(sh)
+            if not df.empty and "Candidate Count" in df.columns:
+                top = df.sort_values("Candidate Count", ascending=False).head(10)
+                ctx.append(f"Top Degrees ({sh.replace('DegreeFrequency_', '')}, top 10):")
+                for _, r in top.iterrows():
+                    ctx.append(f"- {r['Degree']}: {int(r['Candidate Count'])}")
+
+    return "\n".join(ctx)
+
+
+def _ask_llm(question: str, context: str) -> str:
+    client, err = _get_github_models_client()
+    if err:
+        return f"LLM not available: {err}"
+
+    model = safe_secret("GITHUB_MODELS_MODEL", "openai/gpt-4.1")
+
+    system = (
+        "You answer questions using ONLY the provided Excel Summary Context. "
+        "Do not guess. If the answer is not contained in the context, say you do not have enough information."
+    )
+
+    prompt = f"Excel Summary Context:\n{context}\n\nUser Question:\n{question}"
+
+    resp = client.chat.completions.create(
+        model=model,
+        temperature=0.2,
+        top_p=1.0,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt},
+        ],
+    )
+
+    return resp.choices[0].message.content
+
+
+st.divider()
+st.subheader("Ask questions about the generated Excel output")
+
+if "excel_bytes" not in st.session_state:
+    st.info("Run the processor above to generate the Excel output. Then you can ask questions here.")
+else:
+    # Build / cache context once per output
+    if "excel_context" not in st.session_state:
+        st.session_state["excel_context"] = _build_excel_context(st.session_state["excel_bytes"])
+
+    # Optional: show context preview
+    with st.expander("Show Excel summary context (what the assistant can use)"):
+        st.text(st.session_state["excel_context"])
+
+    if "chat_history" not in st.session_state:
+        st.session_state["chat_history"] = []
+
+    user_q = st.chat_input("Ask a question about the output (e.g., top certifications, how many candidates, top skills)")
+    if user_q:
+        answer = _ask_llm(user_q, st.session_state["excel_context"])
+        st.session_state["chat_history"].append(("user", user_q))
+        st.session_state["chat_history"].append(("assistant", answer))
+
+    for role, msg in st.session_state["chat_history"]:
+        with st.chat_message(role):
+            st.write(msg)
