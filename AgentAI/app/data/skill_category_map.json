@@ -169,6 +169,7 @@
   "Keras": "Machine Learning/AI",
   "Random Forests": "Machine Learning/AI",
   "TensorFlow": "Machine Learning/AI",
+  "TenSorFlow": "Machine Learning/AI",
   "Subversion": "Version Control",
   "Eclipse": "Tools",
   "IntelliJ": "Tools",
@@ -316,7 +317,8 @@
   "NumPy": "Framework/Libraries",
   "Plotly": "Framework/Libraries",
   "PySpark": "Language",
-  "Scikit-learn": "Language",
+  "Scikit-learn": "Framework/Libraries",
+  "scikit-learn": "Framework/Libraries",
   "High Performance Computing": "Framework/Libraries",
   "LLM": "Machine Learning/AI",
   "Machine Learning Models": "Machine Learning/AI",
@@ -1001,5 +1003,7 @@
   "Juniper SRX series": "Networking",
   "VMware vCenter": "Tools",
   "Windows Server": "OS",
-  "Intermediate": "Other"
+  "Intermediate": "Other",
+  "QuTip": "Framework/Libraries",
+  "Qiskit": "Framework/Libraries"
 }

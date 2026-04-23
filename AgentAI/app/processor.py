@@ -273,7 +273,9 @@ SKILL_NORMALIZATION = {
     "Sharepoint":"SharePoint",
     "JAVA": "Java",
     "MY SQL": "MySQL",
-    "REST APIs": "REST API"
+    "REST APIs": "REST API",
+    "scikit-learn":"Scikit-learn",
+    "TenSorFlow": "TensorFlow"
     
 }
 
@@ -452,6 +454,7 @@ def _degree_generic_cleanup(line: str) -> str:
     s = re.sub(r"^BS\b", "B.S.", s, flags=re.I)
     s = re.sub(r"^B\.S\b", "B.S.", s, flags=re.I)
     s = re.sub(r"^Bachelor of\b", "B.S.", s, flags=re.I)
+    s = re.sub(r"^Bachelor’s Degree\b", "B.S.", s, flags=re.I)
     s = re.sub(r"^Bachelors of\b", "B.S.", s, flags=re.I)
     s = re.sub(r"^Bachelors of,\b", "B.S.", s, flags=re.I)
     s = re.sub(r"^Bachelor in\b", "B.S.", s, flags=re.I)
@@ -467,6 +470,7 @@ def _degree_generic_cleanup(line: str) -> str:
     s = re.sub(r"^M\.S\ in\b", "M.S.", s, flags=re.I)
     s = re.sub(r"^M.S., in\b", "M.S.", s, flags=re.I)
     s = re.sub(r"^Master of Science\b", "M.S.", s, flags=re.I)
+    s = re.sub(r"^Master’s Degree\b", "M.S.", s, flags=re.I)
     s = re.sub(r"^Master of Sciences,\b", "M.S.", s, flags=re.I)
     s = re.sub(r"^Masters of Science\b", "M.S.", s, flags=re.I)
     s = re.sub(r"^Masters of Science,\b", "M.S.", s, flags=re.I)
