@@ -316,7 +316,8 @@ CERT_NORMALIZATION = {
     "certified scrum master - scrum alliance": "Scrum Master",
     "scrum alliance certified scrum master": "Scrum Master",
     "pmi agile certified practitioner (pmi-acp)":"PMI-ACP (Agile Certified Practitioner)",
-    "pmp - project management institute (pmi)":"PMP (Project Management Professional)"
+    "pmp - project management institute (pmi)":"PMP (Project Management Professional)",
+    "M.S., Digital Forensics and Cyber Investigation": "M.S., Digital Forensics and Cyber Investigations"
        
 }
 
