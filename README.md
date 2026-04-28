@@ -38,10 +38,15 @@ The processor extracts data **only** from the following sections (case-insensiti
 - certification  
 - certifications  
 
-### ✅ Experience
-- Used **only** to calculate **Years of Experience (YOE)**
+### ✅ ProfessionalExperience
+- Used **ONLY** to calculate **Years of Experience (YOE)**
+- professional experience
+-  experience
+-  work experience
+-  employment history
+-  work history
 
-🚫 All other sections (summaries, projects, descriptions, narrative text, training, memberships, etc.) are **ignored entirely**.
+🚫 All other sections (summaries, projects, courses, labs, descriptions, narrative text, training, memberships, etc.) are **ignored entirely**.
 
 ---
 
@@ -175,14 +180,14 @@ The chatbot allows users to **ask questions about the generated Excel file**, su
 - ✅ Read-only (no Excel modification)
 - ✅ Rule-safe (no inference, no recommendations)
 - ✅ Deterministic, question-scoped context slicing
-- ✅ Rate-limit aware (GitHub Models free tier)
+- ✅ Rate-limit aware (GitHub Models company's tier, and p)
 - ✅ Fully detachable via configuration
 
 ---
 
-## Free Access & Rate Limits
+## MasterPeace GitHub Models Access & Rate Limits
 
-The chatbot uses **GitHub Models free-tier access**, which is subject to **rate limits**.
+The chatbot uses **MasterPeace GitHub Models Access**, which is subject to **rate limits and high usage**.
 
 When limits are reached:
 - The app shows a friendly message
@@ -210,6 +215,9 @@ GITHUB_TOKEN="<your_token>"
 GITHUB_MODELS_MODEL = "openai/gpt-4o-mini"
 
 GITHUB_MODELS_ENDPOINT="https://models.github.ai/inference"
+
+CHATBOT_ENABLED = true
+
 
 CHATBOT_MIN_SECONDS = 1.0
 

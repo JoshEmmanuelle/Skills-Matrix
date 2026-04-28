@@ -39,21 +39,25 @@ except Exception:
 # ============================================================
 
 st.set_page_config(page_title="Skills Matrix Resume Processor", layout="wide")
-st.title("Skills Matrix Resume Processor")
+st.title("Skills Matrix Resume Processor - SMRP")
 
 st.markdown(
     """
 ### Processing Mode
 - **Option 1**: Update an existing Skills Matrix Excel (merge)
-- **Option 2**: Generate a NEW Skills Matrix Excel using resumes only
+- **Option 2**: Generate a NEW Skills Matrix Excel
+
+- You can drag and drop the accepted files and folders into the 'Inputs' section
+- The Skills Matrix Resume Processor will generate a new excel file depending of the options you select, and it will be automaically downloaded in your downloads folder
 """
 )
 
 mode = st.radio(
     "Choose processing mode:",
     options=[
-        "Option 1 – Update existing Skills Matrix Excel (merge)",
-        "Option 2 – Generate NEW Skills Matrix Excel using resumes only",
+        "Option 1 – Update an existing Skills Matrix Excel with NEW resumes (.docx)",
+        "Option 2 – Generate a NEW Skills Matrix Excel using only resumes (.docx)",
+    
     ],
 )
 
@@ -66,7 +70,7 @@ st.sidebar.header("Inputs")
 excel_file = None
 if mode.startswith("Option 1"):
     excel_file = st.sidebar.file_uploader(
-        "Upload MOST UPDATED Skills Matrix Excel (.xlsx) [Required for Option 1]",
+        "Upload the MOST UPDATED Skills Matrix Excel (.xlsx) [Required for Option 1]",
         type=["xlsx"],
     )
 

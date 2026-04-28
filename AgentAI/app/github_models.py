@@ -142,7 +142,7 @@ def _get_client() -> Tuple[Optional[OpenAI], Optional[str]]:
 
 def _throttle_seconds() -> float:
     """Minimum seconds between LLM calls (deterministic)."""
-    # Free-tier friendly throttle; can be overridden by secret/env if desired.
+
     env = os.environ.get("CHATBOT_MIN_SECONDS")
     if env:
         try:
@@ -154,7 +154,7 @@ def _throttle_seconds() -> float:
 
 def _free_tier_notice() -> str:
     return (
-        "Note: This chatbot uses GitHub Models free-tier access and may be rate-limited. "
+        "Note: This chatbot uses MasterPeace GitHub Models access and may be rate-limited. "
         "If you need deeper or high-volume analysis, use your company's Microsoft 365 Copilot Chat."
     )
 
@@ -334,7 +334,7 @@ def ask_llm(question: str, context: str) -> str:
     if err:
         return f"LLM not available: {err}"
 
-    # Throttle to protect free-tier limits
+    # Throttle to protect MasterPeace GitHub Models access limits
     now = time.time()
     last = st.session_state.get("_llm_last_call", 0.0)
     min_s = _throttle_seconds()
@@ -346,8 +346,9 @@ def ask_llm(question: str, context: str) -> str:
     st.session_state["_llm_last_call"] = now
 
     system = (
-        "You answer questions using ONLY the provided Excel Context. "
+        "You answer questions using ONLY the provided/output Excel Context. "
         "Do not guess. If the answer is not contained in the context, say you do not have enough information."
+        "You can make recommendations using the excel file as context"
     )
     prompt = f"Excel Context:\n{context}\n\nUser Question:\n{question}"
 
@@ -365,7 +366,7 @@ def ask_llm(question: str, context: str) -> str:
 
     except RateLimitError:
         return (
-            "Rate limit reached for GitHub Models free access. Please try again later.\n\n"
+            "Rate limit reached for MasterPeace GitHub Models Access. Please try again later.\n\n"
             + _free_tier_notice()
         )
 
@@ -397,13 +398,13 @@ def render_llm_badge(where: str = "sidebar") -> None:
     if where == "sidebar":
         if enabled:
             st.sidebar.success(badge_text)
-            st.sidebar.caption("Free access: GitHub Models may be rate-limited. For deeper analysis use Microsoft Copilot Chat.")
+            st.sidebar.caption("MasterPeace LLM access: GitHub Models may be rate-limited. For deeper analysis use company's Microsoft Copilot Chat.")
         else:
             st.sidebar.warning(badge_text)
     else:
         if enabled:
             st.success(badge_text)
-            st.caption("Free access: GitHub Models may be rate-limited. For deeper analysis use Microsoft Copilot Chat.")
+            st.caption("MasterPeace LLM access: GitHub Models may be rate-limited. For deeper analysis use company's Microsoft Copilot Chat.")
         else:
             st.warning(badge_text)
 
@@ -454,7 +455,7 @@ def render_chat(excel_bytes: bytes, state_key_prefix: str = "chat") -> None:
         st.session_state[cache_key] = {}
 
     # Ask question first
-    user_q = st.chat_input("Ask a question about the Excel (e.g., who has Kubernetes, top certifications, etc.)")
+    user_q = st.chat_input("Ask a question about the Excel just produced (e.g., who has Kubernetes, top certifications, etc.)")
 
     if user_q:
         q_norm = re.sub(r"\s+", " ", user_q.strip())
