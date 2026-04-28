@@ -19,7 +19,8 @@ Required (Streamlit Cloud Secrets)
 - GITHUB_TOKEN
 
 Optional (Streamlit Cloud Secrets)
-- GITHUB_MODELS_MODEL (default: openai/gpt-4.1)
+- GITHUB_TOKEN = "<your_token>"
+- GITHUB_MODELS_MODEL (default: openai/gpt-4o-mini)
 - GITHUB_MODELS_ENDPOINT (default: https://models.github.ai/inference)
 - CHATBOT_ENABLED (true/false)
 
@@ -107,7 +108,7 @@ def github_models_endpoint() -> str:
 
 
 def model_name() -> str:
-    return safe_secret("GITHUB_MODELS_MODEL", "openai/gpt-4.1")
+    return safe_secret("GITHUB_MODELS_MODEL", "openai/gpt-4o-mini")
 
 
 def llm_status() -> Tuple[bool, str]:
@@ -148,7 +149,7 @@ def _throttle_seconds() -> float:
             return max(0.0, float(env))
         except Exception:
             pass
-    return float(safe_secret("CHATBOT_MIN_SECONDS", 3.0))
+    return float(safe_secret("CHATBOT_MIN_SECONDS", 1.0))
 
 
 def _free_tier_notice() -> str:

@@ -82,7 +82,7 @@ if gh_llm is not None:
 else:
     st.sidebar.warning("LLM: Disabled (module not installed)")
 
-st.sidebar.header("Mappings")
+# st.sidebar.header("Mappings")
 
 # IMPORTANT: anchor data path to this file's folder
 CATEGORY_MAP_PATH = Path(__file__).resolve().parent / "data" / "skill_category_map.json"
@@ -219,6 +219,9 @@ set_progress(35, "Ready to process resumes")
 st.subheader("Process Resumes")
 
 if st.button("Run Processor", type="primary"):
+    st.session_state.run_requested = True
+
+if st.session_state.get("run_requested"):
     updated_by_cat = by_cat.copy()
     total = len(resume_files)
 
@@ -281,6 +284,7 @@ if st.button("Run Processor", type="primary"):
     st.session_state["excel_bytes"] = out_bytes
     set_progress(100, "Complete")
     st.success("Processing complete.")
+    st.session_state.run_requested = False
 
 # ============================================================
 # ✅ Persistent Download Button (OPTION A)

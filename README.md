@@ -207,11 +207,11 @@ CHATBOT_ENABLED = false/true
 
 GITHUB_TOKEN="<your_token>"
 
-GITHUB_MODELS_MODEL = "openai/gpt-4.1"
+GITHUB_MODELS_MODEL = "openai/gpt-4o-mini"
 
 GITHUB_MODELS_ENDPOINT="https://models.github.ai/inference"
 
-CHATBOT_MIN_SECONDS = 30.0
+CHATBOT_MIN_SECONDS = 1.0
 
 
 

@@ -31,9 +31,9 @@ pip install -r requirements.txt
 cd Skills-Matrix/AgentAI/app/app.py
 
 # To use the free github models you need to export your token in your terminal
-# This is only for local development
-export GITHUB_TOKEN = <"your_token">
-export CHATBOT_ENABLED = true # or CHATBOT_ENABLED = false ; if you dont want to use it.
+# This is only for local development, and must have no spacing
+export GITHUB_TOKEN=<"your_token">
+export CHATBOT_ENABLED=true # or CHATBOT_ENABLED = false ; if you dont want to use it.
 
 # Then run the streamlit command
 streamlit run app.py
@@ -44,10 +44,10 @@ https://skills-matrix-masterpeace.streamlit.app/
 # The Streamlit Cloud services require the following secrets
 GITHUB_TOKEN="<your_token>"
 
-GITHUB_MODELS_MODEL = "openai/gpt-4.1"
+GITHUB_MODELS_MODEL = "openai/gpt-4o-mini"
 
 GITHUB_MODELS_ENDPOINT="https://models.github.ai/inference"
 
 CHATBOT_ENABLED = true # or CHATBOT_ENABLED = false ; if you dont want to use it.
 
-CHATBOT_MIN_SECONDS = 30.0
+CHATBOT_MIN_SECONDS = 1.0

@@ -58,10 +58,11 @@ SKILL_CATEGORY_COLS = [
 SKILLS_HEADERS = {
     "skills",
     "technical skills",
+    "technical skill",
     "skills/tools",
     "skills/tools/technologies",
     "skills & tools",
-    "skills &amp; tools"
+    "sklls &amp; tools"
 }
 
 
@@ -107,10 +108,108 @@ NON_EXTRACTABLE_HEADERS = {
     "skills/technology",
     "skills/tech",
     "training/courses",
+    "independent projects",
+    "home lab",
+    "independent projects &amp; home lab"
+    
     
 }
 
 _SPLIT = re.compile(r"[;,]")
+
+# Paren-aware splitting and skill expansion (added to fix parser breaking on
+# commas inside parentheses, e.g. "Linux (Ubuntu, Kali)" was being split into
+# "Linux (Ubuntu" and "Kali)").
+
+_QUALIFIER_RX = re.compile(
+    r"\s*[-–—]\s*(daily use|primary|main|production|prod|development|dev|"
+    r"preferred|backup|legacy|alternative|current|former|previous)\s*$",
+    re.I,
+)
+
+_BARE_QUALIFIER_WORDS = {
+    "daily", "primary", "main", "production", "prod", "development", "dev",
+    "preferred", "backup", "legacy", "alternative", "current", "former",
+    "previous", "self-taught", "ongoing", "in progress", "wip", "occasional",
+    "occasionally", "rarely", "advanced", "intermediate", "beginner", "expert",
+    "proficient", "familiar", "basic", "introductory", "familiarity", "segmentation", "authoring",
+}
+
+_VERSION_ONLY_RX = re.compile(r"^v?\d+(\.\d+)*\+?$")
+
+def _paren_aware_split(s):
+    """Split on commas and semicolons, but NOT when inside parentheses.
+
+    "A, B (x, y), C" -> ["A", "B (x, y)", "C"]
+    """
+    if not s:
+        return []
+    parts = []
+    buf = []
+    depth = 0
+    for ch in s:
+        if ch == "(":
+            depth += 1
+            buf.append(ch)
+        elif ch == ")":
+            depth = max(0, depth - 1)
+            buf.append(ch)
+        elif ch in ",;" and depth == 0:
+            piece = "".join(buf).strip()
+            if piece:
+                parts.append(piece)
+            buf = []
+        else:
+            buf.append(ch)
+    piece = "".join(buf).strip()
+    if piece:
+        parts.append(piece)
+    return parts
+
+def _expand_skill_piece(piece):
+    """Take one comma-split skill piece and expand it into one or more skills.
+
+    - Extracts parenthetical content as additional skills.
+    - Strips qualifier suffixes like "- daily use", "- primary".
+    - Drops paren content that is just a bare qualifier or a version number.
+    - Drops the parens from the main name.
+
+    "Linux (Ubuntu, Kali - daily use)" -> ["Linux", "Ubuntu", "Kali"]
+    "firewall configuration (Ubiquiti UDM Pro SE)" -> ["firewall configuration", "Ubiquiti UDM Pro SE"]
+    "Bash (daily)" -> ["Bash"]
+    "Python (3.10+)" -> ["Python"]
+    "Kubernetes" -> ["Kubernetes"]
+    """
+    if not piece:
+        return []
+
+    out = []
+    paren_items = []
+
+    # Pull out content from each (...) group
+    for m in re.finditer(r"\(([^)]*)\)", piece):
+        inner = m.group(1)
+        for inner_part in re.split(r"[,;]", inner):
+            inner_part = inner_part.strip()
+            inner_part = _QUALIFIER_RX.sub("", inner_part).strip()
+            if not inner_part:
+                continue
+            # Drop bare qualifier words like "daily", "preferred"
+            if inner_part.lower() in _BARE_QUALIFIER_WORDS:
+                continue
+            # Drop version-only content like "3.10+", "v2"
+            if _VERSION_ONLY_RX.match(inner_part):
+                continue
+            paren_items.append(inner_part)
+
+    # Main name: piece with parens removed
+    main = re.sub(r"\s*\([^)]*\)", "", piece).strip()
+    main = _QUALIFIER_RX.sub("", main).strip()
+    if main:
+        out.append(main)
+
+    out.extend(paren_items)
+    return out
 
 _DASHES = str.maketrans({
     "‐": "-",
@@ -143,7 +242,14 @@ COMPOUND_SPLITS = {
     "xml/sqd" : ["XML","SQD"],
     "xml/xsd": ["XML", "XSD"],
     "analog/digital oscilloscope":["Analog Oscilloscope","Digital Oscilloscope"],
-    "ElasticSearch CVS": ["ElasticSearch", "CVS"]
+    "ElasticSearch CVS": ["ElasticSearch", "CVS"],
+    "Windows Server / 10 / 11": ["Windows Server 10", "Windows Server 11"],
+    "802.1x / radius" : ["802.1X", "RADIUS"],
+    "wireshark / tshark packet capture analysis": ["Wireshark","TShark packet capture analysis"],
+    "microsoft sentinel / azure monitor": ["Microsoft Sentinel", "Azure Monitor"],
+    "aws ec2": ["AWS", "EC2"],
+    "ssp / poa&m / sprs authoring": ["SSP", "POA&M", "SPRS"]
+
 }
 
 # ============================================================
@@ -258,6 +364,7 @@ SKILL_NORMALIZATION = {
     "java spring cloud": "Java Spring",
     "junit4/5": "Junit",
     "macosx": "MacOS X",
+    "macOS": "MacOS,",
     "plsql": "PL/SQL",
     "spark.ml": "Spark",
     "sql developer": "SQL",
@@ -275,7 +382,9 @@ SKILL_NORMALIZATION = {
     "MY SQL": "MySQL",
     "REST APIs": "REST API",
     "scikit-learn":"Scikit-learn",
-    "TenSorFlow": "TensorFlow"
+    "TenSorFlow": "TensorFlow",
+    "Kali": "Kali Linux",
+    "VLAN segmentation": "VLAN"
     
 }
 
@@ -284,7 +393,7 @@ SKILL_NORMALIZATION = {
 # Rule 12: Skill removal
 # ============================================================
 
-REMOVED_SKILLS = {"amazon management console eclipse"}
+REMOVED_SKILLS = {""}
 
 # ============================================================
 # Rule 16: Certification normalization (CertificationFrequency ONLY)
@@ -318,9 +427,7 @@ CERT_NORMALIZATION = {
     "certified scrum master - scrum alliance": "Scrum Master",
     "scrum alliance certified scrum master": "Scrum Master",
     "pmi agile certified practitioner (pmi-acp)":"PMI-ACP (Agile Certified Practitioner)",
-    "pmp - project management institute (pmi)":"PMP (Project Management Professional)",
-    "M.S., Digital Forensics and Cyber Investigation": "M.S., Digital Forensics and Cyber Investigations"
-       
+    "pmp - project management institute (pmi)":"PMP (Project Management Professional)"       
 }
 
 # ============================================================
@@ -386,7 +493,7 @@ DEGREE_NORMALIZATION = {
     "master of science, electrical engineering, johns hopkins university, baltimore md (1989)": "M.S., Electrical Engineering",
     "master’s of science in geographic information systems": "M.S., Geographic Information Systems",
     "m.s., engineering science": "M.S., Engineering",
-    "m.s., digital forensics and cyber investigation": "M.S., Digital Forensics and Cyber Investigations",
+    "m.s., digital forensics and cyber investigations": "M.S., Digital Forensics and Cyber Investigation"
     
 }    
 
@@ -445,40 +552,55 @@ def _degree_generic_cleanup(line: str) -> str:
     s = re.sub(r"^Associate of\b", "A.S.", s, flags=re.I)
     s = re.sub(r"^Associates of\b", "B.S.", s, flags=re.I)
     s = re.sub(r"^Associate of,\b", "A.S.", s, flags=re.I)
-    s = re.sub(r"^Associates in\b", "A.S.", s, flags=re.I)
-    s = re.sub(r"^Associate in,\b", "A.S.", s, flags=re.I)
+    s = re.sub(r"^Associate in\b", "A.S.", s, flags=re.I)
+    s = re.sub(r"^Associates in,\b", "A.S.", s, flags=re.I)
     s = re.sub(r"^Associates in,\b", "A.S.", s, flags=re.I)    
     
     s = re.sub(r"^BA\b", "B.S.", s, flags=re.I)
     s = re.sub(r"^B\.A\b", "B.S.", s, flags=re.I)
     s = re.sub(r"^BS\b", "B.S.", s, flags=re.I)
     s = re.sub(r"^B\.S\b", "B.S.", s, flags=re.I)
-    s = re.sub(r"^Bachelor of\b", "B.S.", s, flags=re.I)
-    s = re.sub(r"^Bachelor’s Degree\b", "B.S.", s, flags=re.I)
+    s = re.sub(r"^Bachelor of Arts\b", "B.S.", s, flags=re.I)  
+    s = re.sub(r"^Bachelors of Science,\b", "B.S.", s, flags=re.I)
+    s = re.sub(r"^Bachelors of Science\b", "B.S.", s, flags=re.I)
+    s = re.sub(r"^Bachelor of Science\b", "B.S.", s, flags=re.I)
+    s = re.sub(r"^Bachelor of Science,\b", "B.S.", s, flags=re.I)
+    s = re.sub(r"^Bachelors in Science,\b", "B.S.", s, flags=re.I)
+    s = re.sub(r"^Bachelors in Science\b", "B.S.", s, flags=re.I)
+    s = re.sub(r"^Bachelor in Science\b", "B.S.", s, flags=re.I)
+    s = re.sub(r"^Bachelor in Science,\b", "B.S.", s, flags=re.I)
+    s = re.sub(r"^Bachelor of Engineering\b", "B.S.", s, flags=re.I)
+    s = re.sub(r"^Bachelor in Engineering\b", "B.S.", s, flags=re.I)
+    s = re.sub(r"^Bachelors in Engineering\b", "B.S.", s, flags=re.I)
     s = re.sub(r"^Bachelors of\b", "B.S.", s, flags=re.I)
     s = re.sub(r"^Bachelors of,\b", "B.S.", s, flags=re.I)
     s = re.sub(r"^Bachelor in\b", "B.S.", s, flags=re.I)
     s = re.sub(r"^Bachelors in\b", "B.S.", s, flags=re.I)
     s = re.sub(r"^Bachelors in,\b", "B.S.", s, flags=re.I)
     s = re.sub(r"^Bachelor in,\b", "B.S.", s, flags=re.I)
-    s = re.sub(r"^Bachelor of (Science|Arts)\b", "B.S.", s, flags=re.I)  
-    s = re.sub(r"^Bachelors of Science\b", "B.S.", s, flags=re.I)
-    s = re.sub(r"^Bachelor of Engineering\b", "B.S.", s, flags=re.I)
+    s = re.sub(r"^Bachelor’s Degree\b", "B.S.", s, flags=re.I)
+    s = re.sub(r"^Bachelor of\b", "B.S.", s, flags=re.I)
+    
 
     s = re.sub(r"^MS\b", "M.S.", s, flags=re.I)
     s = re.sub(r"^M\.S\b", "M.S.", s, flags=re.I)
     s = re.sub(r"^M\.S\ in\b", "M.S.", s, flags=re.I)
-    s = re.sub(r"^M.S., in\b", "M.S.", s, flags=re.I)
     s = re.sub(r"^Master of Science\b", "M.S.", s, flags=re.I)
     s = re.sub(r"^Master’s Degree\b", "M.S.", s, flags=re.I)
     s = re.sub(r"^Master of Sciences,\b", "M.S.", s, flags=re.I)
     s = re.sub(r"^Masters of Science\b", "M.S.", s, flags=re.I)
     s = re.sub(r"^Masters of Science,\b", "M.S.", s, flags=re.I)
     s = re.sub(r"^Masters of Sciences,\b", "M.S.", s, flags=re.I)
+    s = re.sub(r"^Master in Sciences,\b", "M.S.", s, flags=re.I)
+    s = re.sub(r"^Masters in Science\b", "M.S.", s, flags=re.I)
+    s = re.sub(r"^Masters in Science,\b", "M.S.", s, flags=re.I)
+    s = re.sub(r"^Masters in Sciences,\b", "M.S.", s, flags=re.I)
     s = re.sub(r"^Master in\b", "M.S.", s, flags=re.I)
     s = re.sub(r"^Masters in\b", "M.S.", s, flags=re.I)
     s = re.sub(r"^Masters in,\b", "M.S.", s, flags=re.I)
     s = re.sub(r"^Master in,\b", "M.S.", s, flags=re.I)
+    s = re.sub(r"^M.S., in Science\b", "M.S.", s, flags=re.I)
+
 
 
     # Fix double period bug in abbreviations: B.S.. -> B.S.
@@ -528,7 +650,8 @@ def _skills_tokens_from_lines(skills_lines):
         cleaned = _strip_skill_group_labels(line)
         if not cleaned:
             continue
-        tokens.extend([t.strip() for t in _SPLIT.split(cleaned) if t.strip()])
+        for piece in _paren_aware_split(cleaned):
+            tokens.extend(_expand_skill_piece(piece))
     return tokens
 
 # ============================================================
@@ -597,7 +720,7 @@ def clean_certifications_from_lines(cert_lines):
         line = _canon_text(line)
         if not line:
             continue
-        parts = [p.strip() for p in _SPLIT.split(line) if p.strip()]
+        parts = _paren_aware_split(line)
         for p in parts:
             c = clean_cert_token(p)
             if c:
@@ -691,7 +814,9 @@ def process_skills(skills_raw):
 def parse_and_normalize_skills_from_cell(cell):
     if cell is None or (isinstance(cell, float) and pd.isna(cell)):
         return []
-    raw_tokens = [t.strip() for t in _SPLIT.split(str(cell)) if t.strip()]
+    raw_tokens = []
+    for piece in _paren_aware_split(str(cell)):
+        raw_tokens.extend(_expand_skill_piece(piece))
     return process_skills(raw_tokens)
 
 # ============================================================
@@ -1140,7 +1265,7 @@ def rebuild_cert_frequency(by_cat):
         if cell is None or (isinstance(cell, float) and pd.isna(cell)) or not str(cell).strip():
             continue
 
-        certs = [c.strip() for c in _SPLIT.split(str(cell)) if c.strip()]
+        certs = _paren_aware_split(str(cell))
         per_candidate = set()
 
         for c in certs:
