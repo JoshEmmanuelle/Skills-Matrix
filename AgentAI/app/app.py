@@ -38,19 +38,31 @@ except Exception:
 # App setup
 # ============================================================
 
+
 st.set_page_config(page_title="Skills Matrix Resume Processor", layout="wide")
 st.title("Skills Matrix Resume Processor - SMRP")
 
+COPILOT_URL = (
+    "https://m365.cloud.microsoft/chat/"
+    "?titleId=T_28b87335-6fef-cbd1-ce7c-40f08c97d834"
+    "&source=embedded-builder"
+)
+
 st.markdown(
-    """
-### Instructions - Directions
+    f"""
+### Instructions / Directions
 - **Option 1**: Update an existing Skills Matrix Excel (merge)
 - **Option 2**: Generate a NEW Skills Matrix Excel
 
-- You can drag and drop the accepted files and folders into the 'Inputs' section
-- The Skills Matrix Resume Processor will generate a new excel file depending which option you select, and the output will automaically be downloaded in your computer
-- If you want to use an approach similar to this SMRP, use this link to run the SMRP using the company's Microsoft 365 Copilot Chat
-   - https://m365.cloud.microsoft/chat/?titleId=T_28b87335-6fef-cbd1-ce7c-40f08c97d834&source=embedded-builder
+- You can drag and drop the accepted files and folders into the **Inputs** section. 
+  The Skills Matrix Resume Processor will generate a new Excel file based on the option you select, and the output will automatically be available for download
+  
+---
+
+#### Use SMRP with Microsoft 365 Copilot Chat (Similar Approach)
+- **Option 3**: If you want to use an approach similar to this SMRP, you can run it directly with MasterPeace 
+    Skills Matrix Resume Processor Agent using the company’s Microsoft 365 Copilot Chat.
+
 """
 )
 
@@ -59,8 +71,13 @@ mode = st.radio(
     options=[
         "Option 1 – Update an existing Skills Matrix Excel with NEW resumes (.xlsx & .docx)",
         "Option 2 – Generate a NEW Skills Matrix Excel using only resumes (.docx)",
-    
     ],
+)
+
+st.link_button(
+    " Option 3 – Open SMRP in Microsoft 365 Copilot Chat",
+    COPILOT_URL,
+    help="Launch the Skills Matrix Resume Processor experience in Microsoft 365 Copilot Chat",
 )
 
 # ============================================================
