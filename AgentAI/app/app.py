@@ -76,14 +76,14 @@ COPILOT_URL = (
 
 st.markdown(
     f"""
-### Instructions / Directions
+### Instructions
 - **Option 1**: Update an existing Skills Matrix Excel (merge)
 - **Option 2**: Generate a NEW Skills Matrix Excel
 
 - You can drag and drop the accepted files and folders into the **Inputs** section. 
   The Skills Matrix Resume Processor will generate a new Excel file based on the option you select, and the output will automatically be available for download
   
-### **UNDER DEVELOPMENT / OPTION 3** 
+### **UNDER DEVELOPMENT - OPTION 3** 
 - **Option 3**: If you want to use an approach similar to this SMRP, you can run it directly with MasterPeace 
     Skills Matrix Resume Processor Agent using the company’s Microsoft 365 Copilot Chat.
 
