@@ -3,7 +3,8 @@
 Rulebook-compliant Streamlit app for processing resumes into a Skills Matrix Excel.
 
 ## Key Behaviors (Rulebook)
-- Extract ONLY from: **Skills**, **Education/Educations**, **Certification/Certifications**, **ProfessionalExperience**
+- Extract ONLY from: 
+      - **Skills**, **Education/Educations**, **Certification/Certifications**, **ProfessionalExperience**
 
 - No inference. No guessing.
 - Duplicate name check happens before parsing.

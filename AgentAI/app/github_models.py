@@ -10,9 +10,8 @@ How to disable quickly
 - Streamlit Cloud Secrets: CHATBOT_ENABLED = false
 - Or environment variable: CHATBOT_ENABLED=false
 
-Free access notice
-- GitHub Models free tiers have rate limits. When limits are hit, the chatbot will
-  show a friendly message instead of crashing.
+MasterPeace GitHub Models API
+- This chatbot uses MasterPeace GitHub Models access and may be rate-limited. When limits are hit, the chatbot will show a friendly message instead of crashing.
 - For deeper / high-volume analysis, use your company's Microsoft Copilot Chat.
 
 Required (Streamlit Cloud Secrets)
@@ -366,7 +365,7 @@ def ask_llm(question: str, context: str) -> str:
 
     except RateLimitError:
         return (
-            "Rate limit reached for MasterPeace GitHub Models Access. Please try again later.\n\n"
+            "Rate limit reached for MasterPeace GitHub Models Access. Please try again later, or use company's Microsoft 365 Copilot.\n\n"
             + _free_tier_notice()
         )
 
@@ -375,13 +374,13 @@ def ask_llm(question: str, context: str) -> str:
         # We show a safe, non-leaky message.
         return (
             "The AI service returned an error (possibly rate limits or request size). "
-            "Please try a shorter question or wait and try again.\n\n"
+            "Please try a shorter question or wait and try again, or use company's Microsoft 365 Copilot.\n\n"
             + _free_tier_notice()
         )
 
     except Exception:
         return (
-            "The AI service encountered an unexpected error. Please try again.\n\n"
+            "The AI service encountered an unexpected error. Please try again, or use company's Microsoft 365 Copilot.\n\n"
             + _free_tier_notice()
         )
 
@@ -398,13 +397,13 @@ def render_llm_badge(where: str = "sidebar") -> None:
     if where == "sidebar":
         if enabled:
             st.sidebar.success(badge_text)
-            st.sidebar.caption("MasterPeace LLM access: GitHub Models may be rate-limited. For deeper analysis use company's Microsoft Copilot Chat.")
+            st.sidebar.caption("MasterPeace LLM access: GitHub Models may be rate-limited. For deeper analysis use company's Microsoft Copilot Chat, or use the link on the directions/instructions")
         else:
             st.sidebar.warning(badge_text)
     else:
         if enabled:
             st.success(badge_text)
-            st.caption("MasterPeace LLM access: GitHub Models may be rate-limited. For deeper analysis use company's Microsoft Copilot Chat.")
+            st.caption("MasterPeace LLM access: GitHub Models may be rate-limited. For deeper analysis use company's Microsoft Copilot Chat, or use the link on the directions/instructions")
         else:
             st.warning(badge_text)
 

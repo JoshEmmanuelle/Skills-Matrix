@@ -363,6 +363,7 @@ SKILL_NORMALIZATION = {
     "consul and vault.":"Consultaiton and Vault",
     "java spring cloud": "Java Spring",
     "junit4/5": "Junit",
+    "JUnit": "Junit",
     "macosx": "MacOS X",
     "macOS": "MacOS,",
     "plsql": "PL/SQL",
@@ -384,7 +385,28 @@ SKILL_NORMALIZATION = {
     "scikit-learn":"Scikit-learn",
     "TenSorFlow": "TensorFlow",
     "Kali": "Kali Linux",
-    "VLAN segmentation": "VLAN"
+    "VLAN segmentation": "VLAN",
+    "Typescript": "TypeScript",
+    "Ghidra": "GHIDRA",
+    "nmap": "Nmap",
+    "JIRA": "Jira",
+    "Scanboy": "ScanBoy",
+    "CAMEO": "Cameo",
+    "GIMP": "Gimp",
+    "Centos": "CentOS",
+    "CentOs": "CentOS",
+    "Bitbucket": "BitBucket",
+    "ai":"Artificial Intelligence (AI)",
+    "Artificial Intelligence": "Artificial Intelligence (AI)",
+    "Artificial Intelligence (AI)": "Artificial Intelligence (AI)",
+    "Artificial Intelligence (AI).": "Artificial Intelligence (AI)",
+    "MetaSploit": "Metasploit",
+    "MatterMost": "Mattermost",
+    "Postgres": "PostGres",
+    "VMWare vCenter": "VMware vCenter",
+    "StrongSwan Ipsec": "StrongSwan IPsec",
+    "Powershell": "PowerShell"
+
     
 }
 

@@ -43,19 +43,21 @@ st.title("Skills Matrix Resume Processor - SMRP")
 
 st.markdown(
     """
-### Processing Mode
+### Instructions - Directions
 - **Option 1**: Update an existing Skills Matrix Excel (merge)
 - **Option 2**: Generate a NEW Skills Matrix Excel
 
 - You can drag and drop the accepted files and folders into the 'Inputs' section
-- The Skills Matrix Resume Processor will generate a new excel file depending of the options you select, and it will be automaically downloaded in your downloads folder
+- The Skills Matrix Resume Processor will generate a new excel file depending which option you select, and the output will automaically be downloaded in your computer
+- If you want to use an approach similar to this SMRP, use this link to run the SMRP using the company's Microsoft 365 Copilot Chat
+   - https://m365.cloud.microsoft/chat/?titleId=T_28b87335-6fef-cbd1-ce7c-40f08c97d834&source=embedded-builder
 """
 )
 
 mode = st.radio(
     "Choose processing mode:",
     options=[
-        "Option 1 – Update an existing Skills Matrix Excel with NEW resumes (.docx)",
+        "Option 1 – Update an existing Skills Matrix Excel with NEW resumes (.xlsx & .docx)",
         "Option 2 – Generate a NEW Skills Matrix Excel using only resumes (.docx)",
     
     ],
