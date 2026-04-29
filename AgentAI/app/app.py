@@ -37,17 +37,35 @@ except Exception:
 # App setup
 # ============================================================
 
-col_title, col_logo = st.columns([4, 1])
 
-with col_title:
-    st.title("Skills Matrix Resume Processor - SMRP")
+st.set_page_config(page_title="Skills Matrix Resume Processor", layout="wide")
+
+# ------------------------------------------------------------
+# Header: stretched title + right-aligned logo
+# ------------------------------------------------------------
 
 LOGO_PATH = Path(__file__).resolve().parent / "image" / "masterpeace_logo.png"
 
-if LOGO_PATH.exists():
-    st.image(str(LOGO_PATH), use_container_width=True)
-else:
-    st.warning("Logo file not found in deployment.")
+col_title, col_logo = st.columns([4, 2])
+
+with col_title:
+    st.markdown(
+        """
+        <h1 style="
+            letter-spacing: 0.10em;
+            font-weight: 800;
+            margin-bottom: 0.1rem;
+        ">
+            Skills Matrix Resume Processor - SMRP
+        </h1>
+        """,
+        unsafe_allow_html=True,
+    )
+
+with col_logo:
+    if LOGO_PATH.exists():
+        st.image(str(LOGO_PATH), use_container_width=True)
+
 
 
 COPILOT_URL = (
@@ -66,8 +84,6 @@ st.markdown(
   The Skills Matrix Resume Processor will generate a new Excel file based on the option you select, and the output will automatically be available for download
   
 ### **UNDER DEVELOPMENT / OPTION 3** 
-- Use SMRP with Microsoft 365 Copilot Chat (Similar Approach)
-
 - **Option 3**: If you want to use an approach similar to this SMRP, you can run it directly with MasterPeace 
     Skills Matrix Resume Processor Agent using the company’s Microsoft 365 Copilot Chat.
 
