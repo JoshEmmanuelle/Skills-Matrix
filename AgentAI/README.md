@@ -53,3 +53,8 @@ GITHUB_MODELS_ENDPOINT="https://models.github.ai/inference"
 CHATBOT_ENABLED = true # or CHATBOT_ENABLED = false ; if you dont want to use it.
 
 CHATBOT_MIN_SECONDS = 1.0
+
+# We have an Agent created with Microsoft Copilot, that works very similar to this Skills Matrix Resume Processor (SMRP)
+# Find below the link to use it with your compaby's Microsoft 365 Copilot Chat.
+
+https://m365.cloud.microsoft/chat/?titleId=T_28b87335-6fef-cbd1-ce7c-40f08c97d834&source=embedded-builder
