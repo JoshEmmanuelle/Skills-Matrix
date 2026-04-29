@@ -42,11 +42,13 @@ col_title, col_logo = st.columns([4, 1])
 with col_title:
     st.title("Skills Matrix Resume Processor - SMRP")
 
-with col_logo:
-    st.image(
-        "image/masterpeace_logo.png",
-        use_container_width=True
-    )
+LOGO_PATH = Path(__file__).resolve().parent / "image" / "masterpeace_logo.png"
+
+if LOGO_PATH.exists():
+    st.image(str(LOGO_PATH), use_container_width=True)
+else:
+    st.warning("Logo file not found in deployment.")
+
 
 COPILOT_URL = (
     "https://m365.cloud.microsoft/chat/"
