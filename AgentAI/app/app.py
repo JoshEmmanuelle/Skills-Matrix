@@ -33,14 +33,20 @@ try:
 except Exception:
     gh_llm = None
 
-
 # ============================================================
 # App setup
 # ============================================================
 
+col_title, col_logo = st.columns([4, 1])
 
-st.set_page_config(page_title="Skills Matrix Resume Processor", layout="wide")
-st.title("Skills Matrix Resume Processor - SMRP")
+with col_title:
+    st.title("Skills Matrix Resume Processor - SMRP")
+
+with col_logo:
+    st.image(
+        "image/masterpeace_logo.png",
+        use_container_width=True
+    )
 
 COPILOT_URL = (
     "https://m365.cloud.microsoft/chat/"
@@ -57,9 +63,9 @@ st.markdown(
 - You can drag and drop the accepted files and folders into the **Inputs** section. 
   The Skills Matrix Resume Processor will generate a new Excel file based on the option you select, and the output will automatically be available for download
   
----
+### **UNDER DEVELOPMENT / OPTION 3** 
+- Use SMRP with Microsoft 365 Copilot Chat (Similar Approach)
 
-#### Use SMRP with Microsoft 365 Copilot Chat (Similar Approach)
 - **Option 3**: If you want to use an approach similar to this SMRP, you can run it directly with MasterPeace 
     Skills Matrix Resume Processor Agent using the company’s Microsoft 365 Copilot Chat.
 
@@ -75,7 +81,7 @@ mode = st.radio(
 )
 
 st.link_button(
-    " Option 3 – Open SMRP in Microsoft 365 Copilot Chat",
+    " Option 3 – Open SMRP in Microsoft 365 Copilot Chat - *under development*",
     COPILOT_URL,
     help="Launch the Skills Matrix Resume Processor experience in Microsoft 365 Copilot Chat",
 )
