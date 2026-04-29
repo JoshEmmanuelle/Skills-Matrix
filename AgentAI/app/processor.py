@@ -365,7 +365,7 @@ SKILL_NORMALIZATION = {
     "junit4/5": "Junit",
     "junit": "Junit",
     "macosx": "MacOS X",
-    "macos": "MacOS,",
+    "macos": "MacOS",
     "plsql": "PL/SQL",
     "spark.ml": "Spark",
     "sql developer": "SQL",
