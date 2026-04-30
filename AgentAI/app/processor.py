@@ -62,7 +62,7 @@ SKILLS_HEADERS = {
     "skills/tools",
     "skills/tools/technologies",
     "skills & tools",
-    "sklls &amp; tools"
+    "skills &amp; tools"
 }
 
 
@@ -248,7 +248,9 @@ COMPOUND_SPLITS = {
     "wireshark / tshark packet capture analysis": ["Wireshark","TShark packet capture analysis"],
     "microsoft sentinel / azure monitor": ["Microsoft Sentinel", "Azure Monitor"],
     "aws ec2": ["AWS", "EC2"],
-    "ssp / poa&m / sprs authoring": ["SSP", "POA&M", "SPRS"]
+    "ssp / poa&m / sprs authoring": ["SSP", "POA&M", "SPRS"],
+    "embedded and parallel VxWorks": ["Embedded VxWorks",  "Parallel VxWorks"],
+    "xlinx and altera": ["Xilinx", "Altera"]
 
 }
 
@@ -406,7 +408,10 @@ SKILL_NORMALIZATION = {
     "postgres": "PostGres",
     "vmware vcenter": "VMware vCenter",
     "strongswan ipsec": "StrongSwan IPsec",
-    "powershell": "PowerShell"
+    "powershell": "PowerShell",
+    "elastic stack": "ElasticStack",
+    "elasticstack": "ElasticStack",
+    "ubiquity": "Ubiquiti"
 
     
 }
@@ -437,6 +442,7 @@ CERT_NORMALIZATION = {
     "iril v3 foundation (cert# 894862)": "ITIL v3.0",
     "security+": "CompTIA Security+",
     "security +": "CompTIA Security+",
+    "comptia security+ (dod 8140 iat ii compliant)": "CompTIA Security+",
     "security+ (comptia)": "CompTIA Security+",
     "security+ ce": "CompTIA Security+",
     "comptia security+ ce": "CompTIA Security+",
@@ -450,7 +456,8 @@ CERT_NORMALIZATION = {
     "certified scrum master - scrum alliance": "Scrum Master",
     "scrum alliance certified scrum master": "Scrum Master",
     "pmi agile certified practitioner (pmi-acp)":"PMI-ACP (Agile Certified Practitioner)",
-    "pmp - project management institute (pmi)":"PMP (Project Management Professional)"       
+    "pmp - project management institute (pmi)":"PMP (Project Management Professional)",
+    "linux+ (comptia)": "CompTIA Linux+"
 }
 
 # ============================================================
@@ -681,14 +688,15 @@ def _skills_tokens_from_lines(skills_lines):
 # Certification parsing + cleaning (as previously implemented)
 # ============================================================
 
-_MONTHS_RX = r"(?:jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)"
+_months_rx = r"(?:jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)"
 _re_year = re.compile(r"\b(19\d{2}|20\d{2})\b")
 _re_mmddyyyy = re.compile(r"\b\d{1,2}/\d{1,2}/\d{2,4}\b")
-_re_month_year = re.compile(rf"\b{_MONTHS_RX}\b\s*\d{{0,2}}\s*,?\s*(19\d{{2}}|20\d{{2}})", re.I)
+_re_month_year = re.compile(rf"\b{_months_rx}\b\s*\d{{0,2}}\s*,?\s*(19\d{{2}}|20\d{{2}})", re.I)
 _re_paren = re.compile(r"\(([^)]*)\)")
 _re_long_id = re.compile(r"\b[A-Z0-9]{8,}\b")
 _re_code_like = re.compile(r"\b(?:COMP\d+|F\w{10,}|V\w{10,})\b", re.I)
-_re_metadata_words = re.compile(r"\b(certification issued|Cert|Analyst# 10080|License|October|present|udemy courses|self-study|certification issues|issued|exp\.?|expires|Cert# 11073|expiration|taking test|attended Reinvent conference|202|in process)\b", re.I)
+_re_metadata_words = re.compile(r"\b(certification issued|Cert|Analyst# 10080|Compliant|License|in progress|October|present|udemy courses|self-study|certification issues|issued|exp\.?|expires|Cert# 11073|expiration|taking test|attended Reinvent conference|202|in process)\b", re.I)
+_re_expiry_tail = re.compile(r"\s*[-–—]\s*(exp\.?|expires?|expiration)\b.*$",re.I,)
 
 def _canon_text(s: str) -> str:
     s = unicodedata.normalize("NFKC", (s or "")).translate(_DASHES)
@@ -701,39 +709,74 @@ def _cert_lookup_key(s: str) -> str:
 def clean_cert_token(token: str) -> str:
     if token is None:
         return ""
+
     s = _canon_text(str(token))
     if not s:
         return ""
+
+    # strip bullets
     s = re.sub(r"^[•\-\u2022\t\s]+", "", s).strip()
+
+    # ✅ Remove expiry tail BEFORE saving original
+    s = _re_expiry_tail.sub("", s).strip()
+
+    # Preserve original AFTER expiry removal (prevents guard from restoring expiry)
+    original = s
+
     # Drop year-only junk
-    if re.fullmatch(r"(19\d{2}|20\d{2})", s.strip()):
+    if re.fullmatch(r"(19\d{2}|20\d{2})", s):
         return ""
 
-
+    # Remove parentheticals ONLY if they contain metadata
     def paren_repl(m):
         inner = m.group(1)
-        if _re_year.search(inner) or _re_mmddyyyy.search(inner) or _re_month_year.search(inner) or _re_metadata_words.search(inner):
+        if (
+            _re_year.search(inner)
+            or _re_mmddyyyy.search(inner)
+            or _re_month_year.search(inner)
+            or _re_metadata_words.search(inner)
+        ):
             return ""
         return "(" + inner + ")"
 
     s = _re_paren.sub(paren_repl, s)
 
+    # THEN truncate on metadata words
     m = _re_metadata_words.search(s)
     if m:
         s = s[:m.start()].strip(" -;:,.\t")
 
+    # Remove date/id noise
     s = _re_month_year.sub("", s)
     s = _re_mmddyyyy.sub("", s)
     s = _re_year.sub("", s)
     s = _re_code_like.sub("", s)
     s = _re_long_id.sub("", s)
 
-    s = re.sub(r"\b(Certification|Certificate|certification|certificate|cert|Cert)\b\.?$", "", s, flags=re.I).strip()
+    s = re.sub(
+        r"\b(Certification|Certificate|course|certification|certificate|cert|Cert)\b\.?$",
+        "",
+        s,
+        flags=re.I,
+    ).strip()
+
     s = re.sub(r"\s+", " ", s).strip(" ;,-")
 
-    key = _cert_lookup_key(s)
-    if key in CERT_NORMALIZATION:
-        s = CERT_NORMALIZATION[key]
+    if not s:
+        return ""
+
+    # key = _cert_lookup_key(s)
+    # if key in CERT_NORMALIZATION:
+    #     s = CERT_NORMALIZATION[key]
+
+    # Integrity guard (safe): original can no longer contain expiry suffix
+    meta_at_start = bool(
+        _re_metadata_words.search(original)
+        and _re_metadata_words.search(original).start() == 0
+    )
+
+    if " " in original and " " not in s and not meta_at_start:
+        return original.strip()
 
     return s.strip()
 
