@@ -138,10 +138,7 @@ _BARE_QUALIFIER_WORDS = {
 _VERSION_ONLY_RX = re.compile(r"^v?\d+(\.\d+)*\+?$")
 
 def _paren_aware_split(s):
-    """Split on commas and semicolons, but NOT when inside parentheses.
-
-    "A, B (x, y), C" -> ["A", "B (x, y)", "C"]
-    """
+    """Split on commas and semicolons, but NOT when inside parentheses."""
     if not s:
         return []
     parts = []
@@ -165,6 +162,7 @@ def _paren_aware_split(s):
     if piece:
         parts.append(piece)
     return parts
+
 
 def _expand_skill_piece(piece):
     """Take one comma-split skill piece and expand it into one or more skills.
@@ -675,13 +673,27 @@ def _strip_skill_group_labels(line):
     return s
 
 def _skills_tokens_from_lines(skills_lines):
+    """
+    Convert raw SKILLS section lines into individual skill tokens.
+
+    Rule enforcement:
+    - Extract skills literally as written
+    - Split ONLY on commas and semicolons
+    - Do NOT split on '/' unless explicitly listed in COMPOUND_SPLITS
+    - Parenthetical expansion is deterministic and explicit
+    """
+
     tokens = []
+
     for line in skills_lines:
         cleaned = _strip_skill_group_labels(line)
         if not cleaned:
             continue
+
+        # ✅ NO slash-based splitting here
         for piece in _paren_aware_split(cleaned):
             tokens.extend(_expand_skill_piece(piece))
+
     return tokens
 
 # ============================================================
@@ -714,13 +726,13 @@ def clean_cert_token(token: str) -> str:
     if not s:
         return ""
 
-    # strip bullets
+    # Strip bullets
     s = re.sub(r"^[•\-\u2022\t\s]+", "", s).strip()
 
-    # ✅ Remove expiry tail BEFORE saving original
+    # ✅ Remove expiry tail BEFORE anything else
     s = _re_expiry_tail.sub("", s).strip()
 
-    # Preserve original AFTER expiry removal (prevents guard from restoring expiry)
+    # Preserve original AFTER expiry removal
     original = s
 
     # Drop year-only junk
@@ -741,7 +753,7 @@ def clean_cert_token(token: str) -> str:
 
     s = _re_paren.sub(paren_repl, s)
 
-    # THEN truncate on metadata words
+    # Truncate at metadata words (issued, in progress, etc.)
     m = _re_metadata_words.search(s)
     if m:
         s = s[:m.start()].strip(" -;:,.\t")
@@ -753,23 +765,22 @@ def clean_cert_token(token: str) -> str:
     s = _re_code_like.sub("", s)
     s = _re_long_id.sub("", s)
 
+    # Remove trailing generic words
     s = re.sub(
-        r"\b(Certification|Certificate|course|certification|certificate|cert|Cert)\b\.?$",
+        r"\b(Certification|Certificate|course|certification|compliant|certificate|cert|Cert)\b\.?$",
         "",
         s,
         flags=re.I,
     ).strip()
 
+    # Normalize whitespace/punctuation only
     s = re.sub(r"\s+", " ", s).strip(" ;,-")
 
+    # If nothing meaningful remains, drop it
     if not s:
         return ""
 
-    # key = _cert_lookup_key(s)
-    # if key in CERT_NORMALIZATION:
-    #     s = CERT_NORMALIZATION[key]
-
-    # Integrity guard (safe): original can no longer contain expiry suffix
+    # ✅ Integrity guard (literal preservation only)
     meta_at_start = bool(
         _re_metadata_words.search(original)
         and _re_metadata_words.search(original).start() == 0
@@ -1318,8 +1329,14 @@ def _normalize_cert_for_frequency(cert):
     raw = (cert or "").strip()
     if not raw:
         return ""
-    k = _cert_key(raw)
-    return CERT_NORMALIZATION.get(k, CERT_NORMALIZATION.get(raw.lower().strip(), raw))
+
+    key = _cert_key(raw)
+
+    # ✅ Rule 16: normalization ONLY for frequency sheet
+    return CERT_NORMALIZATION.get(
+        key,
+        CERT_NORMALIZATION.get(raw.lower().strip(), raw)
+    )
 
 def rebuild_cert_frequency(by_cat):
     by_cat = ensure_by_category_columns(by_cat)
@@ -1328,7 +1345,7 @@ def rebuild_cert_frequency(by_cat):
 
     for _, r in by_cat.iterrows():
         cell = r.get("Certifications", "")
-        if cell is None or (isinstance(cell, float) and pd.isna(cell)) or not str(cell).strip():
+        if not cell or not str(cell).strip():
             continue
 
         certs = _paren_aware_split(str(cell))
@@ -1345,15 +1362,18 @@ def rebuild_cert_frequency(by_cat):
         for k in per_candidate:
             counts[k] += 1
 
-    key_to_label = {}
-    for k, votes in label_votes.items():
-        key_to_label[k] = sorted(votes.items(), key=lambda kv: (-kv[1], kv[0].casefold(), kv[0]))[0][0]
+    key_to_label = {
+        k: sorted(v.items(), key=lambda kv: (-kv[1], kv[0].casefold()))[0][0]
+        for k, v in label_votes.items()
+    }
 
-    rows = []
-    for k in sorted(counts.keys(), key=lambda x: key_to_label.get(x, x).casefold()):
-        rows.append({"Certification": key_to_label.get(k, k), "Candidate Count": int(counts[k])})
+    rows = [
+        {"Certification": key_to_label[k], "Candidate Count": counts[k]}
+        for k in sorted(counts, key=lambda x: key_to_label[x].casefold())
+    ]
 
     return pd.DataFrame(rows, columns=["Certification", "Candidate Count"])
+
 
 def rebuild_degree_frequency(by_cat, col):
     by_cat = ensure_by_category_columns(by_cat)
