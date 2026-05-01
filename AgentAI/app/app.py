@@ -83,7 +83,6 @@ st.markdown(
 - You can drag and drop the accepted files and folders into the **Inputs** section. 
   The Skills Matrix Resume Processor will generate a new Excel file based on the option you select, and the output will automatically be available for download
   
-### **UNDER DEVELOPMENT - OPTION 3** 
 - **Option 3**: If you want to use an approach similar to this SMRP, you can run it directly with MasterPeace 
     Skills Matrix Resume Processor Agent using the company’s Microsoft 365 Copilot Chat.
 
@@ -99,7 +98,7 @@ mode = st.radio(
 )
 
 st.link_button(
-    " Option 3 – Open SMRP in Microsoft 365 Copilot Chat - *under development*",
+    " Option 3 – Open SMRP in Microsoft 365 Copilot Chat",
     COPILOT_URL,
     help="Launch the Skills Matrix Resume Processor experience in Microsoft 365 Copilot Chat",
 )

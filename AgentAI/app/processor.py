@@ -707,7 +707,7 @@ _re_month_year = re.compile(rf"\b{_months_rx}\b\s*\d{{0,2}}\s*,?\s*(19\d{{2}}|20
 _re_paren = re.compile(r"\(([^)]*)\)")
 _re_long_id = re.compile(r"\b[A-Z0-9]{8,}\b")
 _re_code_like = re.compile(r"\b(?:COMP\d+|F\w{10,}|V\w{10,})\b", re.I)
-_re_metadata_words = re.compile(r"\b(certification issued|Cert|Analyst# 10080|Compliant|License|in progress|October|present|udemy courses|self-study|certification issues|issued|exp\.?|expires|Cert# 11073|expiration|taking test|attended Reinvent conference|202|in process)\b", re.I)
+_re_metadata_words = re.compile(r"\b(certification issued|Cert|Analyst# 10080|License|in progress|October|present|udemy courses|self-study|certification issues|issued|exp\.?|expires|Cert# 11073|expiration|taking test|attended Reinvent conference|202|in process)\b", re.I)
 _re_expiry_tail = re.compile(r"\s*[-–—]\s*(exp\.?|expires?|expiration)\b.*$",re.I,)
 
 def _canon_text(s: str) -> str:
